@@ -37,6 +37,7 @@ Its explicit `__all__` contains only these names:
 | Captured outcomes / descriptions | ExecutionResult, CommandProposal |
 | Author checks | validate_pack, validate_pack_id |
 | Declared Pack outcomes | ExtensionUnavailable, ExtensionIncompatible, ExtensionFailure |
+| Explicit registration | PackRegistry |
 
 `ExecutionResult` appears in the diagnosis signature, and its `command` field
 uses `CommandProposal`. Both describe data; neither has execution methods.
@@ -77,6 +78,50 @@ python -m unittest tests.test_extension_sdk
 
 The example and demo are source-distribution material, not installed wheel
 runtime modules. The normal CLI does not load them.
+
+## Explicit registration
+
+This is **explicit programmatic registration**. RepoRescue does **not** yet
+automatically discover third-party Packs. Callers import and instantiate their
+own Pack, then submit that object through the public SDK. For a source checkout:
+
+```python
+from agent_doctor.sdk import PackRegistry
+from examples.extensions.example_language_pack import ExampleLanguagePack
+
+registry = PackRegistry.default()  # independent membership; python.core only
+registry.register(ExampleLanguagePack())
+snapshot = registry.snapshot()    # (Python Pack, Example Pack), in this order
+```
+
+`PackRegistry()` starts empty; `PackRegistry((pack_a, pack_b))` registers explicitly
+supplied objects in order. `register(pack)` returns None on success and raises
+ValueError for invalid SDK metadata, malformed IDs/declarations, missing callable
+capabilities or duplicate IDs. A duplicate error includes `Duplicate pack ID`
+and the ID. Failure neither reserves the ID nor replaces an existing Pack.
+Registration reuses metadata/capability validation and checks tuple/string shape
+for platform and tool declarations. It does not execute Pack stages.
+
+`get(pack_id)` returns the supplied object or None. `packs` is a read-only tuple
+property, and `snapshot()` captures tuple membership/order. Later registrations
+do not change an existing snapshot or prepared pipeline run. Snapshots are
+shallow: Pack objects are not copied or sandboxed. Authors must keep metadata/IDs
+and capability implementations stable after registration; metadata properties
+must have no side effects. There is no global mutable registry or thread-safety
+guarantee, unregister operation, lifecycle, priority or persistence system.
+
+Core passes this snapshot as the existing `prepare_extensions` collection;
+pipeline also validates incoming collections before compatibility and dispatch.
+Its default collection and `PackRegistry.default()` use the same existing
+`BUILTIN_EXTENSIONS` source. Core's factory import is fixed and lazy, never based
+on caller strings or third-party paths. Default workflow/CLI still use only Python.
+No workflow parameter or public execution entry point is added in this step.
+
+Registration validity is distinct from runtime compatibility: API `"2"`, a
+different platform or an unavailable required tool can be structurally valid.
+Pipeline still reports api_version_mismatch, unsupported_platform or
+missing_required_tool and skips that Pack's stages. Registering a Pack grants
+no executor, shell, writer, network client or mutable environment handle.
 
 ## Metadata and capabilities
 
@@ -139,7 +184,7 @@ signals or disguise programming errors as successful findings.
 
 These are in-process Python contracts, not a security sandbox: they cannot stop
 hostile code importing privileged APIs on its own. Runtime does not automatically
-load third-party Packs or grant them command-execution authority. There is no registry, marketplace,
+load third-party Packs or grant them command-execution authority. There is no marketplace,
 installer, enable/disable, dependency solver, remote/signed manifest or plugin
 host. Repair/verification execution, transactions, rollback, GUI and LLM remain
 outside this step. No SDK metadata is added to JSON and no CLI flags are added.

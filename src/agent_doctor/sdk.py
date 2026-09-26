@@ -15,6 +15,7 @@ from .models import (
     ProjectInfo, DetectionResult, EnvironmentInfo, Evidence, DiagnosisResult,
     RootCauseStep, RepairPlan, RepairAction, VerificationStep, ExecutionResult, CommandProposal,
 )
+from .pack_registry import PackRegistry
 
 
 __all__ = (
@@ -23,4 +24,5 @@ __all__ = (
     "ProjectInfo", "DetectionResult", "EnvironmentInfo", "Evidence", "DiagnosisResult",
     "RootCauseStep", "RepairPlan", "RepairAction", "VerificationStep", "ExecutionResult", "CommandProposal",
     "ExtensionUnavailable", "ExtensionIncompatible", "ExtensionFailure", "validate_pack", "validate_pack_id",
+    "PackRegistry",
 )

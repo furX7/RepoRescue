@@ -12,13 +12,14 @@ from typing import Literal, Protocol, cast, runtime_checkable
 from .extensions import (
     Capability, CompatibilityStatus, Detector, DiagnosisRule, EvidenceProvider,
     Extension, ExtensionEnvironment, ExtensionFailure, ExtensionIncompatible,
-    ExtensionUnavailable, RepairPlanner, Verifier, check_compatibility, validate_pack,
+    ExtensionUnavailable, RepairPlanner, Verifier, check_compatibility,
 )
 from .models import (
     CommandProposal, DetectionResult, DiagnosisResult, EnvironmentInfo, Evidence, ExecutionResult,
     ProjectInfo,
 )
 from .python_extension import PythonCoreExtension
+from .pack_registry import PackRegistry
 
 
 BUILTIN_EXTENSIONS: tuple[Extension, ...] = (PythonCoreExtension(),)
@@ -64,12 +65,11 @@ def prepare_extensions(
     environment: ExtensionEnvironment, extensions: Sequence[Extension] | None = None,
 ) -> tuple[ExtensionRun, ...]:
     """Validate static Pack declarations and compatibility before stage calls."""
-    extensions = BUILTIN_EXTENSIONS if extensions is None else extensions
+    extensions = tuple(BUILTIN_EXTENSIONS if extensions is None else extensions)
     identifiers = [extension.metadata.id for extension in extensions]
     if len(set(identifiers)) != len(identifiers):
         raise ValueError("Duplicate built-in extension id")
-    for extension in extensions:
-        validate_pack(extension)
+    extensions = PackRegistry(extensions).snapshot()
 
     runs = []
     for extension in extensions:

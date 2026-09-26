@@ -182,7 +182,7 @@ declared capability. There is no run-everything method, concurrent execution,
 manager, lifecycle framework or extension-controlled workflow.
 
 `prepare_extensions` rejects duplicate metadata IDs as a configuration error,
-then validates declared capability implementations before invoking the existing
+then captures a structurally validated PackRegistry snapshot before invoking the existing
 compatibility checker for each extension. Core supplies
 the canonical current platform and current Python availability without scanning
 other tools. API mismatch, unsupported platform and missing required tools are
@@ -350,9 +350,11 @@ Third-party Pack
     ↓
 agent_doctor.sdk
     ↓
-Extension Contracts + Core Models
+Explicit Pack Registry (Extension Contracts + Core Models)
     ↓
-Core Extension Pipeline (explicit static configuration)
+Extension Pipeline
+    ↓
+Core Workflow (orchestration / authority / safety)
 ```
 
 SDK does not expose execution authority. It has no dependency on workflow, CLI
@@ -361,6 +363,30 @@ explicitly supply it to the unchanged pipeline. Core runtime does not import
 the example; `BUILTIN_EXTENSIONS` still contains only PythonCoreExtension.
 SDK enters the wheel; example/demo/docs enter the sdist. Dynamic third-party
 discovery and automatic loading remain unimplemented.
+
+## Explicit Pack Registration / Static Registry
+
+`src/agent_doctor/pack_registry.py` defines the public SDK's `PackRegistry`:
+register, get, read-only packs and tuple snapshot, plus a default factory.
+It saves explicitly supplied SDK Pack objects in registration order. Structural
+validation and duplicate rejection happen before insertion; ValueError leaves
+membership unchanged and identifies the invalid declaration or duplicate ID.
+No Pack business stage is called during registration.
+
+The existing `BUILTIN_EXTENSIONS` tuple is the single default source.
+`PackRegistry.default()` creates independent membership from it via a fixed lazy
+Core import. `prepare_extensions` captures and validates its input collection
+through the registry, retaining its existing duplicate configuration error.
+Snapshots preserve membership/order, not immutable Pack internals. A host may
+explicitly register the Example Pack and supply its snapshot to this same pipeline;
+normal workflow and CLI still receive Python only. Workflow is unchanged.
+
+Registry saves valid declarations; pipeline handles runtime compatibility and
+stage dispatch; Core owns authority, policy and orchestration. Structurally valid
+but incompatible API/platform/tool declarations can register and are skipped by
+pipeline. There is no global mutable registry, discovery, string-based import,
+disk/package scanning, persistence, installer, priorities or plugin lifecycle.
+Registry exposes no executor, shell, writer, environment handle or network client.
 
 ## Product goal
 

@@ -41,7 +41,7 @@ class SDKExportTests(unittest.TestCase):
         self.assertIs(importlib.import_module("agent_doctor.sdk"), sdk)
 
     def test_all_is_explicit_and_contains_only_selected_names(self):
-        self.assertEqual(set(sdk.__all__), set(CONTRACT_NAMES + MODEL_NAMES))
+        self.assertEqual(set(sdk.__all__), set(CONTRACT_NAMES + MODEL_NAMES + ("PackRegistry",)))
         self.assertEqual(len(sdk.__all__), len(set(sdk.__all__)))
         self.assertEqual({name for name in vars(sdk) if not name.startswith("_")}, set(sdk.__all__))
 
@@ -80,14 +80,16 @@ class SDKExportTests(unittest.TestCase):
             with self.subTest(name=name), self.assertRaises(ImportError):
                 exec("from agent_doctor.sdk import " + name, {})
 
-    def test_sdk_depends_only_on_contracts_and_models(self):
+    def test_sdk_depends_only_on_contracts_models_and_registration(self):
         tree = ast.parse((ROOT / "src" / "agent_doctor" / "sdk.py").read_text(encoding="utf-8"))
         imports = [node for node in ast.walk(tree) if isinstance(node, (ast.Import, ast.ImportFrom))]
         self.assertTrue(imports)
         for node in imports:
             self.assertIsInstance(node, ast.ImportFrom)
             self.assertEqual(node.level, 1)
-            self.assertIn(node.module, ("extensions", "models"))
+            self.assertIn(node.module, ("extensions", "models", "pack_registry"))
+            if node.module == "pack_registry":
+                self.assertEqual([alias.name for alias in node.names], ["PackRegistry"])
             self.assertNotIn("*", [alias.name for alias in node.names])
 
 

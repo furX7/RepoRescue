@@ -1,12 +1,14 @@
-"""Small rules over structured inputs, without parsing logs or taking actions.
+"""Small rules over structured inputs, without taking actions.
 
 Confidence values are fixed rule indicators, not statistical probabilities or
 confidence in a particular root cause. No root cause is inferred from an exit
-code alone. Evidence IDs are local to a single diagnosis call.
+code alone. Import analysis recognizes only two explicit exception lines from
+already captured output. Evidence IDs are local to a single diagnosis call.
 """
 
 from collections.abc import Sequence
 from pathlib import Path
+import re
 
 from .models import (
     DetectionResult,
@@ -20,6 +22,223 @@ from .models import (
     RootCauseStep,
     VerificationStep,
 )
+
+
+_MODULE_NAME = r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*"
+_MODULE_NOT_FOUND = re.compile(
+    rf"^ModuleNotFoundError: No module named (?P<quote>['\"])(?P<module>{_MODULE_NAME})(?P=quote)$"
+)
+_SYMBOL_IMPORT_FAILURE = re.compile(
+    rf"^ImportError: cannot import name (?P<symbol_quote>['\"])(?P<symbol>[^'\"\r\n]+)"
+    rf"(?P=symbol_quote) from (?P<module_quote>['\"])(?P<module>{_MODULE_NAME})(?P=module_quote)$"
+)
+
+
+def analyze_import_failure(execution: ExecutionResult, index: int) -> Evidence | None:
+    """Extract one explicit Python import failure from captured process output.
+
+    stderr takes precedence over stdout. Within the selected stream, the last
+    explicit supported error line wins. No process or project file is touched.
+    """
+    if execution.status in ("rejected", "requires_confirmation"):
+        return None
+    unsuccessful = (
+        execution.status in ("failed", "timeout")
+        or execution.timed_out
+        or (execution.exit_code is not None and execution.exit_code != 0)
+    )
+    if not unsuccessful:
+        return None
+
+    for stream_name, output in (("stderr", execution.stderr), ("stdout", execution.stdout)):
+        matches: list[tuple[str, re.Match[str]]] = []
+        for line in output.splitlines():
+            raw_message = line.strip()
+            match = _MODULE_NOT_FOUND.fullmatch(raw_message)
+            if match is not None:
+                matches.append((raw_message, match))
+                continue
+            match = _SYMBOL_IMPORT_FAILURE.fullmatch(raw_message)
+            if match is not None:
+                matches.append((raw_message, match))
+        if not matches:
+            continue
+
+        raw_message, match = matches[-1]
+        if raw_message.startswith("ModuleNotFoundError:"):
+            metadata = {
+                "exception_type": "ModuleNotFoundError",
+                "missing_module": match.group("module"),
+                "source_stream": stream_name,
+                "raw_message": raw_message,
+                "status": "missing_module",
+            }
+        else:
+            metadata = {
+                "exception_type": "ImportError",
+                "imported_symbol": match.group("symbol"),
+                "source_module": match.group("module"),
+                "source_stream": stream_name,
+                "raw_message": raw_message,
+                "status": "symbol_import_failure",
+            }
+        reference = f"execution:{index}"
+        return Evidence(
+            evidence_id=f"{reference}:python_import",
+            kind="python_import_failure",
+            source="captured_execution_output",
+            summary=raw_message,
+            associated_id=reference,
+            location=str(execution.command.working_directory),
+            metadata=metadata,
+        )
+    return None
+
+
+def _diagnose_import_failure(item: Evidence, index: int) -> DiagnosisResult:
+    reference = item.evidence_id
+    status = item.metadata["status"]
+    diagnosis_id = f"python_import_failure:{index}"
+    if status == "missing_module":
+        module = item.metadata["missing_module"]
+        problem = f"Python could not import the module '{module}'."
+        source = "rule:python_module_not_found"
+        observed_title = f"ModuleNotFoundError names '{module}'"
+        unavailable_title = f"The requested import '{module}' did not complete"
+        review_description = (
+            f"Check project dependency metadata to identify the distribution intended to provide '{module}'; "
+            "do not assume the import name and distribution name are identical."
+        )
+        verification_description = (
+            f"Using the intended interpreter, verify that importing '{module}' completes successfully."
+        )
+        plan_summary = (
+            "Confirm which distribution provides the missing import module and ensure it is available "
+            "in the intended Python environment."
+        )
+        plan_risk = "MEDIUM"
+        recommended_actions = (
+            "Confirm that the captured run used the intended project interpreter.",
+            review_description,
+            "If a dependency change is required, review and perform it manually before rerunning the project.",
+        )
+        plan_actions = (
+            RepairAction(
+                f"import:{index}:confirm_environment",
+                "Confirm the captured run used the intended project interpreter.",
+                (),
+                True,
+                True,
+            ),
+            RepairAction(
+                f"import:{index}:review_metadata",
+                review_description,
+                (),
+                True,
+                True,
+            ),
+            RepairAction(
+                f"import:{index}:manual_dependency_change",
+                "If review establishes that a distribution is absent, manually install the correct distribution in the intended environment.",
+                (),
+                False,
+                True,
+            ),
+        )
+    else:
+        symbol = item.metadata["imported_symbol"]
+        module = item.metadata["source_module"]
+        problem = f"Python could not import symbol '{symbol}' from module '{module}'."
+        source = "rule:python_symbol_import_failure"
+        observed_title = f"ImportError names symbol '{symbol}' from '{module}'"
+        unavailable_title = f"The requested symbol import from '{module}' did not complete"
+        review_description = (
+            f"Review project metadata and the intended '{module}' API for the requested symbol '{symbol}'."
+        )
+        verification_description = (
+            f"Using the intended interpreter, verify that importing '{symbol}' from '{module}' completes successfully."
+        )
+        plan_summary = (
+            "Confirm the intended environment and review the requested module API before making any change."
+        )
+        plan_risk = "LOW"
+        recommended_actions = (
+            "Confirm that the captured run used the intended project interpreter.",
+            review_description,
+            "Rerun the import only after reviewing the intended module API.",
+        )
+        plan_actions = (
+            RepairAction(
+                f"import:{index}:confirm_environment",
+                "Confirm the captured run used the intended project interpreter.",
+                (),
+                True,
+                True,
+            ),
+            RepairAction(
+                f"import:{index}:review_module_api",
+                review_description,
+                (),
+                True,
+                True,
+            ),
+        )
+
+    return DiagnosisResult(
+        problem=problem,
+        category="python_import",
+        severity="ERROR",
+        confidence=1.0,
+        source=source,
+        evidence_refs=(reference,),
+        probable_causes=(),
+        recommended_actions=recommended_actions,
+        diagnosis_id=diagnosis_id,
+        root_cause_chain=(
+            RootCauseStep(
+                f"import:{index}:exception",
+                observed_title,
+                "The captured output contains this explicit Python exception line.",
+                (reference,),
+            ),
+            RootCauseStep(
+                f"import:{index}:incomplete",
+                unavailable_title,
+                "The requested import operation did not complete in the captured run.",
+                (reference,),
+            ),
+            RootCauseStep(
+                f"import:{index}:cause_unconfirmed",
+                "The providing distribution and underlying cause are not established",
+                "The exception identifies an import failure but does not prove which package, version, or environment change is appropriate.",
+                (reference,),
+            ),
+        ),
+        repair_plan=RepairPlan(
+            id=f"preview:{diagnosis_id}",
+            diagnosis_id=diagnosis_id,
+            summary=plan_summary,
+            risk=plan_risk,
+            actions=plan_actions,
+            verification_steps=(
+                VerificationStep(
+                    f"import:{index}:verify_interpreter",
+                    "Confirm the verification uses the intended project interpreter.",
+                    "manual",
+                ),
+                VerificationStep(
+                    f"import:{index}:verify_metadata",
+                    "Confirm project dependency metadata names the intended distribution when one is required.",
+                    "file_check",
+                ),
+                VerificationStep(
+                    f"import:{index}:verify_import",
+                    verification_description,
+                    "command",
+                ),
+            ),
+        ),
+    )
 
 
 def diagnose(
@@ -194,6 +413,11 @@ def diagnose(
             continue
         if execution.status == "requires_confirmation":
             continue
+
+        import_evidence = analyze_import_failure(execution, index)
+        if import_evidence is not None:
+            evidence.append(import_evidence)
+            diagnoses.append(_diagnose_import_failure(import_evidence, index))
 
         # The executor's current supported operation, identified without I/O.
         is_version_probe = (

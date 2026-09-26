@@ -81,3 +81,16 @@ Only different produces a WARNING python_environment diagnosis, with its own
 evidence-linked chain and LOW preview. Ambiguous/unavailable are limitation notices;
 matched/none are positive or neutral evidence. Existing Python version mismatch
 diagnoses remain independent. Schema remains 0.2.
+
+Python import failure Evidence uses kind `python_import_failure` and source
+`captured_execution_output`. It is emitted only for an unsuccessful captured
+execution and one of two explicit error-line forms. Shared metadata is:
+
+- exception_type: `ModuleNotFoundError` or `ImportError`.
+- source_stream: `stderr` or `stdout`; stderr takes precedence.
+- raw_message: only the selected exception line, not a whole traceback.
+- status: `missing_module` or `symbol_import_failure`.
+
+`missing_module` adds only `missing_module`. `symbol_import_failure` adds only
+`imported_symbol` and `source_module`. Import names are not mapped to package
+distribution names. These additive metadata fields do not change schema 0.2.

@@ -5,8 +5,9 @@ Evidence-driven diagnosis and recovery planning for broken development projects.
 RepoRescue diagnoses why a development project may not run, explains the root
 cause chain, and generates safe repair and verification plans without modifying
 the project. Current evidence coverage is limited to shallow Python markers,
-the interpreter version probe, the root pyproject.toml Python requirement, and
-fixed project-local interpreter paths.
+the interpreter version probe, the root pyproject.toml Python requirement,
+fixed project-local interpreter paths, and two explicit Python import exception lines
+from already captured execution output.
 
 RepoRescue 是面向开发者和 AI 编程 Agent 的项目故障诊断工具，基于结构化证据进行诊断，并提供根因链、修复方案预览和验证计划。当前版本为 READ ONLY：不会自动修改项目、安装依赖或执行修复；目前为 Windows First、Python only。
 
@@ -105,6 +106,8 @@ cannot contain a Python project. No-problem reports explicitly mention limited c
 - Current interpreter and dependency-manifest filename inspection.
 - Root pyproject.toml [project].requires-python compatibility checks.
 - Project-local .venv/venv interpreter identity checks (file presence only).
+- Conservative recognition of explicit `ModuleNotFoundError: No module named ...`
+  and `ImportError: cannot import name ... from ...` lines in supplied execution results.
 - Controlled current-interpreter `--version` execution.
 - A few structured, evidence-backed diagnosis rules.
 - Short evidence-referenced root cause chains.
@@ -128,7 +131,9 @@ cannot contain a Python project. No-problem reports explicitly mention limited c
   [project].requires-python; dependency contents/conflicts are not analyzed.
 - The interpreter is the one running RepoRescue, not an automatically selected
   project environment. Launch verification is only a version probe.
-- No arbitrary traceback, import-error, pytest, dependency, or application diagnosis.
+- No arbitrary traceback, pytest, dependency-resolution, or application diagnosis.
+  Import analysis accepts only the two documented explicit exception-line forms;
+  it does not infer a PyPI distribution or prove that a dependency is absent.
 - Confidence is a rule indicator, not a statistical probability. Chains may describe
   consequences without establishing an underlying cause.
 - Windows First; Python 3.13.1 was tested. The minimum 3.12 and Linux/macOS have not
@@ -183,6 +188,18 @@ The LOW-risk preview asks the user to confirm intent, manually select the interp
 and rerun diagnosis. Planned verification checks sys.executable, normalized identity,
 and existing Python version checks. It does not activate an environment, start a
 shell, change PATH, install dependencies, or restart RepoRescue.
+
+## Python import failure check
+
+The diagnosis layer can inspect already captured stdout or stderr for exact
+`ModuleNotFoundError: No module named 'module.name'` and
+`ImportError: cannot import name 'symbol' from 'module.name'` lines. It prefers
+stderr and selects the last supported line in that stream. The current workflow
+does not start user code to produce this output and the executor allowlist is unchanged.
+
+An import name is not assumed to be a package distribution name. The report does
+not map names such as `PIL`, `yaml`, or `cv2`, query a package index, run pip, or
+modify dependency metadata. Repair and import verification remain unexecuted plans.
 
 ## Machine report contract
 

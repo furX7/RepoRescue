@@ -40,6 +40,117 @@ repair preview. python_import, python_environment, and python_version stay indep
 
 This document records the approved v0.1 architecture. It defines design only; implementation is gated on the user's explicit `START IMPLEMENTATION` instruction.
 
+## Extension Architecture — v0.3 foundation
+
+This section records the implemented first extraction step of v0.3, following
+the [Notion roadmap](https://app.notion.com/p/3e71d223bf6381a8bd86ca012503c8df),
+sections 9 and 11. The remaining sections retain the historical v0.1 design.
+
+**Core owns policy and orchestration.**
+**Extensions provide knowledge, not unrestricted authority.**
+This is the Small Core, Large Ecosystem boundary, not a plugin runtime.
+
+```text
+RepoRescue Core
+├─ Workflow
+├─ Safety
+├─ Data Models
+└─ Extension Contracts
+     ├─ Detector
+     ├─ EvidenceProvider
+     ├─ DiagnosisRule
+     ├─ RepairPlanner
+     └─ Verifier
+```
+
+`src/agent_doctor/extensions.py` defines independent structural `typing.Protocol`
+contracts. A component can implement just one stage; there is no required base
+class or run-everything method. `Extension` exposes metadata only. Each stage
+exposes an `id` and these methods, using the existing Core models:
+
+| Contract | Signature / result |
+|---|---|
+| Detector | `detect(project) -> DetectionResult` |
+| EvidenceProvider | `collect(project, environment) -> Sequence[Evidence]` |
+| DiagnosisRule | `diagnose(project, detection, environment, evidence, executions=()) -> (Sequence[DiagnosisResult], Sequence[Evidence])` |
+| RepairPlanner | `plan(project, diagnosis, evidence) -> RepairPlan or None` |
+| Verifier | `build_verification(project, diagnosis, repair_plan) -> Sequence[VerificationStep]` |
+
+Diagnosis returns evidence as well as findings because current Python rules
+derive observations from captured output and already return both. Evidence IDs
+and references remain governed by Core models. Repair/verification results are
+descriptions: `not_executed` / `not_run`, with no new execution authority.
+
+There is no shared Context. Inputs are the existing project/detection/environment
+snapshots, evidence and already captured execution outcomes. `ExecutionResult`
+contains data and a command description, not an executor. `EnvironmentInfo`
+describes the current Python runtime; it does not grant environment write access.
+Future language-specific observations can be expressed through Evidence and
+captured outcomes rather than assuming this Python runtime is their runtime.
+Extensions must not mutate caller inputs (including the existing shallow-frozen
+`Evidence.metadata` dictionary). Runtime Protocol checks establish member presence,
+not signature correctness or trust; type annotations and behavior tests also matter.
+
+`ExtensionMetadata` is a frozen Python dataclass with `id`, `name`, `version`,
+`api_version`, `capabilities`, `supported_platforms`, and `required_tools`.
+Capabilities are a `frozenset[Capability]` containing only DETECT, INSPECT,
+DIAGNOSE, PLAN_REPAIR, and VERIFY. Arbitrary strings are rejected. Shell, network,
+installation and file writes are privileged Core-controlled actions, not extension
+capabilities. There is no manifest parser.
+
+`EXTENSION_API_VERSION = "1"` is independent of the pack's metadata version,
+RepoRescue package version, and JSON schema version `0.2`. Metadata is internal
+and never added to machine reports; existing Core JSON capabilities are unchanged.
+
+`check_compatibility(metadata, ExtensionEnvironment(...))` is a pure comparison
+over caller-supplied platform, available tool names and Core extension API version.
+It returns a typed status: `compatible`, `api_version_mismatch`,
+`unsupported_platform`, or `missing_required_tool`, including missing tool names.
+The first failure wins in API/platform/tools order. Identifiers use exact canonical
+names; an empty platform list supports none. The checker neither discovers tools
+nor performs filesystem, process or network operations. Compatibility is not consent.
+
+`src/agent_doctor/python_extension.py` contains `PythonCoreExtension`, a thin facade
+with id `python.core`, name `Python Core Pack`, pack version `0.1`, API version `1`,
+all five capabilities, platform `windows`, and required tool `python`. Its mappings are:
+
+- Detection delegates to `detect_python_project`.
+- Collection delegates to the bounded requirement and local interpreter inspectors.
+- Diagnosis maps existing optional observations by evidence kind and calls the
+  unchanged `diagnose`, including import/startup/timeout rules. Core supplies startup
+  observations and captured executions. Additional evidence kinds are not interpreted
+  by this Python facade; each future pack owns its own knowledge.
+- Planning exposes the existing diagnosis's `repair_plan`.
+- Verification exposes the supplied preview's `verification_steps`, or none.
+
+The official workflow still calls existing Python functions directly and owns
+Project → Detection → Evidence → Diagnosis → Root Cause → Repair Plan → Verification.
+The facade is exercised in tests; it is not wired into CLI or workflow. Command
+and filesystem policy, consent, timeout and output limits remain with Core. No
+extension may bypass these controls, directly execute arbitrary shell, write project
+files, alter PATH, install packages, or bypass future transaction/rollback controls.
+Python-native contracts cannot sandbox hostile in-process code. Third-party execution
+must wait for an appropriate future Core boundary; no sandbox is claimed here.
+
+`ExtensionUnavailable`, `ExtensionIncompatible`, and `ExtensionFailure` carry the
+extension ID and a message. They respectively mean missing prerequisites/observations,
+unsupported API/platform, and a failed stage. A future invocation boundary must isolate
+failures per extension/stage, preserve other results and translate unexpected exceptions
+to local failures instead of crashing RepoRescue. This step defines semantics only.
+
+The test-only `FakeLanguageExtension` implements the contracts independently of Python,
+proves metadata/capability/compatibility behavior, and uses snapshots without modifying
+projects or receiving an executor. It is not in the runtime package or CLI.
+
+Future Node / Java / C++ packs can implement these same stage contracts and return
+Core Evidence, DiagnosisResult, RepairPlan and VerificationStep objects, without adding
+a language-specific orchestration algorithm. Today they cannot be registered or loaded:
+stage dispatch and discovery remain later v0.3 work. This foundation alone does not make
+the current Python-only workflow accept a new pack automatically. Dynamic loading,
+entry points, plugin folders, registry, ID conflict handling, marketplace, installation,
+isolation runtime, other-language support, repair/verification execution, rollback, GUI
+and LLM integration are not implemented by this step. README Roadmap remains planned.
+
 ## Product goal
 
 Given a project path, RepoRescue scans the project, identifies a Python project, inspects the environment, proposes and safely executes approved diagnostic commands, captures evidence, performs rule-based diagnosis, and presents a report.

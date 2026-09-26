@@ -135,3 +135,75 @@ They do not call for a Kotaemon- or Gradio-specific rule in Core. General
 dependency, environment, and import evidence belongs in the Python Pack;
 framework-specific API compatibility knowledge can live in a relevant Pack.
 Core should continue to own shared evidence, safety, and execution policy.
+
+## Comfy-Org/ComfyUI #15784
+
+- **Date:** 2026-09-27
+- **RepoRescue:** 0.3.0a1
+- **Result:** 🟡 Partial diagnosis
+- **Issue:** [ComfyUI nightly startup fails importing `ColorPrimaries`](https://github.com/Comfy-Org/ComfyUI/issues/15784)
+
+### Reported problem and source revision
+
+The issue describes a startup `ImportError` for `ColorPrimaries` from
+`av.video.reformatter` after updating to a ComfyUI nightly around Aug 20–21,
+2026. It does not give an exact commit SHA. Source history points to
+`dcbcf8c2e10ba618ad38cc6eebfe54b099fec11a` (Aug 20, HDR video support), whose
+`comfy_api/latest/_input_impl/video_types.py` contains the import from the
+traceback and is loaded through the `main.py` → `execution` → `nodes` startup
+path.
+
+The issue says disabling custom nodes avoids the crash, but the selected source
+imports `comfy_api.version_list` unconditionally from `nodes.py`; that custom
+node condition was not independently confirmed. The full ComfyUI GPU/model
+environment was not installed.
+
+### Reproduction and RepoRescue observation
+
+On the untouched ComfyUI clone, default diagnosis reported `healthy` and
+proposed the supported root `main.py` startup probe. The probe ran, but this
+machine stopped earlier on missing `sqlalchemy`; that finding describes the
+validation environment and did not reach the reported PyAV error.
+
+A separate minimal `main.py` project used the first three imports from the
+actual ComfyUI source and the unmodified official Windows PyAV wheels. With
+PyAV 16.0.1, default diagnosis reported `healthy`; startup probing captured the
+actual `ColorPrimaries` `ImportError` and correctly classified it as a Python
+symbol import failure. The root-cause chain stopped at “the providing
+distribution and underlying cause are not established.” Repair Preview
+recommended environment/API review; verification was planned, not run.
+
+The same import succeeded with PyAV 17.0.0 and 18.1.0. These are minimal import
+checks, not a full ComfyUI startup or GUI verification.
+
+### Independently supported root cause
+
+The selected ComfyUI `requirements.txt` declares `av>=16.0.0`, while the
+video API imports `ColorPrimaries`, `ColorRange`, and `ColorTrc`. In the tested
+official wheels, PyAV 16.0.1 provides `ColorRange` but lacks `ColorPrimaries`
+and `ColorTrc`; versions 17.0.0 and 18.1.0 provide all three. PyAV's 17.0.0
+release notes identify `ColorPrimaries` and `ColorTrc` as additions. The
+failure is therefore an API capability mismatch: the declared lower bound
+allows a version that lacks symbols required by the source. The issue's claim
+that newer PyAV releases removed these symbols conflicts with the tested
+versions and official release notes.
+
+### Gaps observed
+
+These gaps repeat cases #1 and #2:
+
+- Accepting a user's existing traceback or logs as evidence.
+- Collecting structured installed distribution version and module-origin facts.
+- Correlating source imports with dependency versions and the required API.
+
+The earlier entrypoint gap does not apply here: RepoRescue recognized and ran
+root `main.py`. This case adds a general version-floor gap: a package can
+satisfy its declared minimum version while lacking a symbol the source now
+requires. It also shows that an incomplete local environment can fail earlier
+than the target error and must not be mistaken for a full issue reproduction.
+
+These are observations for future evaluation, not automatic roadmap additions.
+Generic Python dependency and API evidence belongs in the Python Pack;
+ComfyUI/PyAV-specific compatibility knowledge can live in a relevant Pack.
+Core retains shared evidence, provenance, safety and execution policy. This
+record does not add a ComfyUI-specific rule or commit any item to the roadmap.

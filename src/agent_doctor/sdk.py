@@ -16,6 +16,9 @@ from .models import (
     RootCauseStep, RepairPlan, RepairAction, VerificationStep, ExecutionResult, CommandProposal,
 )
 from .pack_registry import PackRegistry
+from .pack_discovery import (
+    PACK_ENTRY_POINT_GROUP, DiscoveryFailure, DiscoveryResult, discover_installed_packs,
+)
 
 
 __all__ = (
@@ -25,4 +28,5 @@ __all__ = (
     "RootCauseStep", "RepairPlan", "RepairAction", "VerificationStep", "ExecutionResult", "CommandProposal",
     "ExtensionUnavailable", "ExtensionIncompatible", "ExtensionFailure", "validate_pack", "validate_pack_id",
     "PackRegistry",
+    "PACK_ENTRY_POINT_GROUP", "DiscoveryFailure", "DiscoveryResult", "discover_installed_packs",
 )

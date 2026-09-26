@@ -248,7 +248,8 @@ evidence-based diagnosis, and terminal/JSON reporting. The
 
 The experimental [Extension SDK foundation](docs/extension-sdk.md) includes an
 [official example Pack](examples/extensions/example_language_pack.py). Runtime
-remains built-in only; dynamic third-party discovery is not yet implemented.
+defaults remain built-in only. Hosts can explicitly discover installed Pack entry
+points; discovery is not automatically enabled in CLI, with no marketplace or installer.
 
 The [GIF generator](tools/generate_demo_gif.py) uses an already installed project
 CLI and Pillow as a local documentation tool. Pillow is not a runtime dependency;

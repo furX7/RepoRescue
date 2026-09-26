@@ -7,9 +7,10 @@
 promise of permanent compatibility. The package version remains `0.2.0a2` and
 the report schema remains `0.2`. These versions describe different contracts.
 
-The runtime currently uses built-in Packs only. Dynamic third-party discovery
-and automatic loading are not implemented. The official example runs only
-when a test explicitly supplies it to the existing pipeline.
+Default workflow/CLI use built-in Packs only. Hosts can explicitly discover
+installed Pack entry points through the SDK; automatic CLI discovery is not
+enabled. The official example has no installed entry point and runs only when
+explicitly supplied to the registry/pipeline.
 
 ## Pack and Extension
 
@@ -38,6 +39,7 @@ Its explicit `__all__` contains only these names:
 | Author checks | validate_pack, validate_pack_id |
 | Declared Pack outcomes | ExtensionUnavailable, ExtensionIncompatible, ExtensionFailure |
 | Explicit registration | PackRegistry |
+| Installed Pack discovery | PACK_ENTRY_POINT_GROUP, discover_installed_packs, DiscoveryResult, DiscoveryFailure |
 
 `ExecutionResult` appears in the diagnosis signature, and its `command` field
 uses `CommandProposal`. Both describe data; neither has execution methods.
@@ -81,7 +83,7 @@ runtime modules. The normal CLI does not load them.
 
 ## Explicit registration
 
-This is **explicit programmatic registration**. RepoRescue does **not** yet
+This is **explicit programmatic registration**. Default CLI does **not**
 automatically discover third-party Packs. Callers import and instantiate their
 own Pack, then submit that object through the public SDK. For a source checkout:
 
@@ -122,6 +124,72 @@ different platform or an unavailable required tool can be structurally valid.
 Pipeline still reports api_version_mismatch, unsupported_platform or
 missing_required_tool and skips that Pack's stages. Registering a Pack grants
 no executor, shell, writer, network client or mutable environment handle.
+
+## Installed Pack discovery
+
+An explicit host call queries the current Python environment's installed entry
+points in the single fixed group `reporescue.packs`, using the standard library's
+[importlib.metadata](https://docs.python.org/3.12/library/importlib.metadata.html#entry-points).
+The user must have already installed a trusted distribution. RepoRescue does
+not download, install, search for packages or query a marketplace/network service.
+It does not scan project/plugin directories or accept file paths/import strings.
+
+A third-party distribution can declare this synthetic package metadata:
+
+```toml
+[project.entry-points."reporescue.packs"]
+example = "example_package:build_pack"
+```
+
+`example_package.build_pack` must be a **no-argument callable** returning one SDK
+Pack object. A class with a no-argument constructor is also callable. Direct
+Pack objects/module targets are not supported. The official source example is
+not registered as an entry point in RepoRescue's own package metadata.
+
+```python
+from agent_doctor.sdk import PackRegistry, discover_installed_packs
+
+registry = PackRegistry.default()
+result = discover_installed_packs(registry)
+snapshot = registry.snapshot()  # supplied explicitly to Core's existing pipeline
+```
+
+The caller's registry receives successful candidates through `register()`, using
+its existing validation and atomic insertion. There is no global discovery state.
+SDK import, default registry creation and normal CLI do not invoke discovery.
+API/platform/tool mismatches remain runtime compatibility outcomes, not discovery
+failures; they are registered if structurally valid and later filtered by pipeline.
+
+Factories load in case-sensitive `(entry-point name, distribution name, value)`
+order; unavailable distribution names sort as an empty string. Duplicate Pack
+IDs never replace existing objects. The first candidate in this order wins;
+later collisions, including `python.core`, are recorded as skipped failures.
+Repeated calls still load factories and reject IDs already registered; discovery
+is not a reload or enable/disable mechanism.
+
+`DiscoveryResult` and `DiscoveryFailure` are frozen data:
+
+- `registered_ids`: newly registered/discovered IDs in deterministic order.
+- `failures`: all rejected candidates, including duplicate skips.
+- `skipped`: failures with status `skipped` (`duplicate_pack_id`).
+- `failed`: failures with status `failed` (query_failed, metadata_failed,
+  load_failed, invalid_factory, factory_failed or invalid_pack).
+
+Failures include entry-point name, optional distribution name, code and concise
+fixed message. Unavailable or unsafe identity labels are omitted. Raw exception
+messages, repr and traceback are not returned, preventing exception paths/secrets
+from being copied into results. These results never enter schema 0.2 reports.
+One candidate's ordinary Exception does not stop other candidates;
+KeyboardInterrupt, SystemExit and GeneratorExit propagate. Earlier successful
+registrations remain if such a signal interrupts the call.
+
+**Installed third-party Packs are executable Python code.** Entry-point load
+imports third-party code and the factory invocation executes it. Use only trusted
+installed sources. **RepoRescue metadata validation is NOT a sandbox.** The layer
+does not invoke detect/collect/diagnose/plan/build_verification, provide privileged
+handles or perform command/network/file-write operations itself; it cannot stop
+loaded code from producing its own side effects or output. Automatic CLI discovery,
+an installer, marketplace, signatures and process isolation are not implemented.
 
 ## Metadata and capabilities
 

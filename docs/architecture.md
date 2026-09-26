@@ -362,7 +362,7 @@ or executor. The example imports only the SDK and standard library, and tests
 explicitly supply it to the unchanged pipeline. Core runtime does not import
 the example; `BUILTIN_EXTENSIONS` still contains only PythonCoreExtension.
 SDK enters the wheel; example/demo/docs enter the sdist. Dynamic third-party
-discovery and automatic loading remain unimplemented.
+entry-point discovery is now an explicit SDK API; automatic CLI discovery remains disabled.
 
 ## Explicit Pack Registration / Static Registry
 
@@ -387,6 +387,44 @@ but incompatible API/platform/tool declarations can register and are skipped by
 pipeline. There is no global mutable registry, discovery, string-based import,
 disk/package scanning, persistence, installer, priorities or plugin lifecycle.
 Registry exposes no executor, shell, writer, environment handle or network client.
+
+## Controlled Pack Discovery
+
+```text
+Installed Python Distribution
+    ↓
+reporescue.packs Entry Point
+    ↓
+Controlled Discovery (explicit host call)
+    ↓
+PackRegistry
+    ↓
+Extension Pipeline
+    ↓
+Core (authority / orchestration / safety)
+```
+
+`src/agent_doctor/pack_discovery.py` provides the SDK's
+`discover_installed_packs(registry)` and small frozen result/failure types.
+It queries only `importlib.metadata.entry_points(group="reporescue.packs")`,
+sorts by entry-point name, distribution name and value, loads no-argument
+factories, then uses the existing registry validation/atomic insertion.
+No directory search, arbitrary path/import-string API, network or installer exists.
+
+Discovery knows installed factory metadata; registry validates/stores objects;
+pipeline invokes stages; Core controls authority. Duplicate IDs are recorded,
+never replaced, so installed Packs cannot overwrite `python.core`. API/platform/
+tool compatibility still belongs to pipeline. Query/load/factory/validation
+Exceptions become concise structured results; process-control BaseExceptions
+propagate. Raw exception messages/tracebacks are not returned. These results
+are not added to JSON schema 0.2.
+
+Loading an entry point and invoking a factory execute third-party Python code.
+Installed sources must be trusted: validation is not a sandbox and cannot
+prevent that code's own side effects. Discovery itself does not invoke Pack
+business stages or grant execution handles. SDK import does not query metadata;
+default registry/workflow/CLI do not call discovery. Python remains the only
+default Pack, and the official example has no installed distribution entry point.
 
 ## Product goal
 

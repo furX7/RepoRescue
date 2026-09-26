@@ -78,7 +78,10 @@ def run_workflow(
                 environment = replace(environment, python_callable=False)
 
         report = build_json_report(project, detection, environment, diagnostics, evidence)
-        terminal = render_terminal_report(project, detection, environment, diagnostics, evidence=evidence)
+        terminal = render_terminal_report(
+            project, detection, environment, diagnostics, evidence=evidence,
+            requested_project_path=project_path,
+        )
         saved_path = write_json_report(report, output_path)
     except (OSError, ValueError) as error:
         raise WorkflowError(str(error)) from error

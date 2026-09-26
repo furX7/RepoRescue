@@ -4,10 +4,11 @@ This module does not inspect projects, run commands, or alter diagnosis results.
 """
 
 import json
+import re
 from dataclasses import fields, is_dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from pathlib import Path
+from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from typing import Any, Mapping, Sequence
 
 from . import __version__
@@ -92,12 +93,101 @@ def build_json_report(
     return _json_value(report)
 
 
+def _presentation_path(value: str | PurePath) -> PurePath:
+    """Interpret both Windows and POSIX spellings without touching the filesystem."""
+    if isinstance(value, PurePosixPath):
+        return PurePosixPath(value)
+    text = str(value)
+    if isinstance(value, PureWindowsPath) or PureWindowsPath(text).drive or "\\" in text:
+        return PureWindowsPath(text)
+    return PurePosixPath(text)
+
+
+def _relative_display(path: PurePath, base: PurePath) -> str | None:
+    try:
+        return str(path.relative_to(base))
+    except ValueError:
+        return None
+
+
+def _display_path(
+    value: str | PurePath, *, project_root: str | PurePath,
+    cwd: str | PurePath, external_label: str = "external path",
+) -> str:
+    """Display only; never resolve a path or return it to an executor."""
+    path, root, workspace = map(_presentation_path, (value, project_root, cwd))
+    if not path.is_absolute():
+        return str(path)
+    relative = _relative_display(path, root)
+    if relative is not None:
+        return relative
+    # cwd is a useful workspace anchor only when it contains this project.
+    # A filesystem root must not expose arbitrary external directory trees.
+    if workspace != type(workspace)(workspace.anchor) and _relative_display(root, workspace) is not None:
+        relative = _relative_display(path, workspace)
+        if relative is not None:
+            return relative
+    return f"{external_label}: {path.name}"
+
+
+def _terminal_paths(
+    text: str, project: ProjectInfo, environment: EnvironmentInfo,
+    evidence: Sequence[Evidence], requested_project_path: str | PurePath | None,
+    cwd: str | PurePath,
+) -> str:
+    """Format known structured paths in terminal text without changing source data."""
+    root, workspace = map(_presentation_path, (project.root_path, cwd))
+    requested = _presentation_path(requested_project_path) if requested_project_path is not None else root
+    if not requested.is_absolute():
+        requested = type(root)(requested)
+    workspace_project = None
+    if workspace != type(workspace)(workspace.anchor):
+        workspace_project = _relative_display(root, workspace)
+    project_display = str(requested) if not requested.is_absolute() else (
+        workspace_project or str(type(root)("...") / root.name)
+    )
+    replacements = {root: project_display}
+    if environment.python_executable is not None:
+        interpreter = _presentation_path(environment.python_executable)
+        replacements[interpreter] = _display_path(
+            interpreter, project_root=root, cwd=workspace, external_label="external interpreter",
+        )
+    for item in evidence:
+        for key in ('entrypoint', 'detected_interpreter_path', 'current_python_executable', 'interpreter'):
+            value = item.metadata.get(key)
+            values = value if isinstance(value, (tuple, list)) else (value,)
+            for value in values:
+                if not isinstance(value, (str, PurePath)):
+                    continue
+                path = _presentation_path(value)
+                if path.is_absolute():
+                    replacements.setdefault(path, _display_path(
+                        path, project_root=root, cwd=workspace,
+                        external_label='external interpreter' if key != 'entrypoint' else 'external path',
+                    ))
+    # Exact known path spellings may occur inside diagnosis/verification prose.
+    # These substitutions are presentation only; ancestry was decided by pathlib.
+    patterns = []
+    for path, display in sorted(replacements.items(), key=lambda item: len(str(item[0])), reverse=True):
+        spellings = dict.fromkeys((str(path), path.as_posix()))
+        pattern = '(?:' + '|'.join(re.escape(spelling) for spelling in spellings) + r')(?![\w.-])'
+        if isinstance(path, PureWindowsPath):
+            pattern = f"(?i:{pattern})"
+        patterns.append((pattern, display))
+    if patterns:
+        combined = '|'.join(f"(?P<p{index}>{pattern})" for index, (pattern, _) in enumerate(patterns))
+        text = re.sub(combined, lambda match: patterns[int(match.lastgroup[1:])][1], text)
+    return text
+
+
 def render_terminal_report(
     project: ProjectInfo,
     detection: DetectionResult,
     environment: EnvironmentInfo,
     diagnostics: Sequence[DiagnosisResult],
     *, evidence: Sequence[Evidence] = (),
+    requested_project_path: str | PurePath | None = None,
+    cwd: str | PurePath | None = None,
 ) -> str:
     """Render a concise summary without expanding evidence bodies."""
     if environment.python_available:
@@ -105,7 +195,15 @@ def render_terminal_report(
     else:
         availability = "unavailable"
     version = environment.python_version or "unknown version"
-    executable = str(environment.python_executable) if environment.python_executable else "not found"
+    cwd = cwd if cwd is not None else Path.cwd()
+    if environment.python_executable is not None:
+        executable = _display_path(
+            environment.python_executable, project_root=project.root_path,
+            cwd=cwd, external_label="external interpreter",
+        )
+        interpreter_display = executable if executable.startswith("external interpreter:") else f"executable: {executable}"
+    else:
+        interpreter_display = "executable: not found"
     if environment.python_callable is True:
         launch = "launch verified"
     elif environment.python_callable is False:
@@ -117,7 +215,7 @@ def render_terminal_report(
         "RepoRescue",
         f"Project: {project.root_path}",
         f"Detection: {detection.level}",
-        f"Python Environment: {availability}; Python {version}; {launch}; executable: {executable}",
+        f"Python Environment: {availability}; Python {version}; {launch}; {interpreter_display}",
         "", "Findings:",
     ]
     # Sort only the presentation; JSON and independent diagnoses stay unchanged.
@@ -229,7 +327,10 @@ def render_terminal_report(
         lines.append("READ ONLY: Repair preview only. Verification steps were not run; no dependency changes were made.")
     lines.append("No repair actions were executed.")
     lines.append("RepoRescue currently performs limited checks.")
-    return "\n".join(lines)
+    return _terminal_paths(
+        "\n".join(lines), project, environment, evidence,
+        requested_project_path, cwd if cwd is not None else Path.cwd(),
+    )
 
 
 def write_json_report(

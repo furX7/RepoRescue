@@ -3,21 +3,22 @@
 Evidence-driven diagnosis and recovery planning for broken development projects.
 
 RepoRescue diagnoses why a development project may not run, explains the root
-cause chain, and generates safe repair and verification plans without modifying
-the project. Current evidence coverage is limited to shallow Python markers,
+cause chain, and generates repair and verification plans without applying repairs.
+Metadata inspection is READ ONLY; explicitly confirmed startup probes execute project code
+and may have project-defined side effects. Current evidence coverage is limited to shallow Python markers,
 the interpreter version probe, the root pyproject.toml Python requirement,
-fixed project-local interpreter paths, and two explicit Python import exception lines
-from already captured execution output.
+fixed project-local interpreter paths, two explicit Python import exception lines,
+and a separately confirmed root-level main.py startup probe.
 
-RepoRescue 是面向开发者和 AI 编程 Agent 的项目故障诊断工具，基于结构化证据进行诊断，并提供根因链、修复方案预览和验证计划。当前版本为 READ ONLY：不会自动修改项目、安装依赖或执行修复；目前为 Windows First、Python only。
+RepoRescue 是面向开发者和 AI 编程 Agent 的项目故障诊断工具，基于结构化证据进行诊断，并提供根因链、修复方案预览和验证计划。默认 CLI 为 READ ONLY：不会自动修改项目、安装依赖或执行修复；经明确确认的 API 启动探测会执行项目代码，可能产生项目定义的副作用。目前为 Windows First、Python only。
 
-**v0.2.0-alpha · Windows First · Python only · READ ONLY · MIT**
+**v0.2.0-alpha · Windows First · Python only · READ ONLY by default · MIT**
 
 Source repository: [furX7/RepoRescue](https://github.com/furX7/RepoRescue).
 
 Current checks scan filenames, inspect the root Python requirement, and probe
 the interpreter running RepoRescue.
-They do not execute project code. A clean report does not prove a project works.
+The default CLI does not execute project code. A clean report does not prove a project works.
 
 ## Why
 
@@ -109,6 +110,7 @@ cannot contain a Python project. No-problem reports explicitly mention limited c
 - Conservative recognition of explicit `ModuleNotFoundError: No module named ...`
   and `ImportError: cannot import name ... from ...` lines in supplied execution results.
 - Controlled current-interpreter `--version` execution.
+- Root-level `main.py` startup proposal (CAUTION); execution requires explicit API confirmation.
 - A few structured, evidence-backed diagnosis rules.
 - Short evidence-referenced root cause chains.
 - Descriptive repair previews with planned verification steps.
@@ -116,12 +118,15 @@ cannot contain a Python project. No-problem reports explicitly mention limited c
 
 ## Safety and limitations
 
-- READ ONLY target handling: no source changes, installation, deletion, project-code
-  execution, tests, builds, startup, or target bytecode generation.
+- Metadata inspection and the default CLI are READ ONLY: no source changes,
+  installation, deletion, project-code execution, tests, builds, or startup.
+  RepoRescue itself does not modify project files. A confirmed startup probe executes
+  project code, which may write files or bytecode, use the network, or start services.
 - The executor independently validates exact argv and working directory. Its only
-  executable operation is `<current Python executable> --version`, with `shell=False`
+  automatic executable operation is `<current Python executable> --version`, with `shell=False`
   and a timeout. Unknown SAFE commands are rejected; CAUTION does not execute;
-  DANGEROUS is rejected. No interactive approval bypass exists.
+  DANGEROUS is rejected. A separate startup executor accepts only absolute current
+  Python plus absolute root `main.py`, with explicit confirmation. No interactive CLI approval exists.
 - Repair plans always say `execution_status: not_executed`; verification steps say
   `status: not_run`. They grant no permission to execute anything.
 - Scans root and direct children, at most 1,000 entries. Skips `.git`, `.venv`, `venv`,
@@ -139,7 +144,7 @@ cannot contain a Python project. No-problem reports explicitly mention limited c
 - Windows First; Python 3.13.1 was tested. The minimum 3.12 and Linux/macOS have not
   been separately verified for this release.
 - Controls are not a sandbox: they trust the current interpreter, offer no generic
-  secret masking, hard capture-memory bound, process-tree/resource isolation, or
+  secret masking, a hard capture-memory bound for the version probe, process-tree/resource isolation, or
   protection against concurrent filesystem changes. Returned output is capped.
 - Explicit report-write failure can leave a partial new file. Reports contain local
   paths and captured output; review them before sharing.
@@ -194,12 +199,43 @@ shell, change PATH, install dependencies, or restart RepoRescue.
 The diagnosis layer can inspect already captured stdout or stderr for exact
 `ModuleNotFoundError: No module named 'module.name'` and
 `ImportError: cannot import name 'symbol' from 'module.name'` lines. It prefers
-stderr and selects the last supported line in that stream. The current workflow
-does not start user code to produce this output and the executor allowlist is unchanged.
+stderr and selects the last supported line in that stream. The default workflow
+does not start user code. Explicitly confirmed startup output reuses this analyzer;
+the version executor still rejects project commands.
 
 An import name is not assumed to be a package distribution name. The report does
 not map names such as `PIL`, `yaml`, or `cv2`, query a package index, run pip, or
 modify dependency metadata. Repair and import verification remain unexecuted plans.
+
+## Startup probe (alpha)
+
+Only a readable root-level `main.py` whose resolved path stays directly within the
+project root is supported. No framework, README command, module entrypoint, extra
+argument, or environment override is accepted. The command is CAUTION because it
+executes project code and may write files, use the network, start services, or block.
+
+The CLI displays the proposal, exact argv, working directory, risk, and reason,
+but never executes it: there is no CLI confirmation mechanism yet. Library callers
+must obtain informed approval for that exact proposal before calling
+`run_workflow(project_path, confirm_startup=True)` or `execute_startup_probe(..., confirmed=True)`.
+The boolean is the caller's approval assertion, not an interactive approval system.
+
+Execution uses `shell=False`, disabled stdin, a copy of the current process environment,
+and a default observation window of 5 seconds (maximum 5). No .env is read and no
+environment variables are overridden. Successful exit code 0 establishes only that
+the supported probe completed. Non-zero exit is an ERROR symptom; independent import
+diagnoses remain separate. Timeout is INFO and does not prove startup failure,
+a hang, or successful service readiness.
+
+On timeout, the startup runner kills the direct child and checks termination, allowing
+up to one second for waiting and one second for output cleanup beyond the observation window.
+Termination failures are reported explicitly. Descendants are not supervised or terminated;
+inherited pipes can leave background output readers until those descendants exit.
+Startup capture retains at most 64 KiB per stream while two readers continuously
+drain and discard excess output. Returned excerpts are limited to 4096 characters;
+truncated flags mean output was omitted, not execution failure. This is controlled execution, not a sandbox.
+RepoRescue performs no repair or dependency installation. The executed project may
+have its own side effects, so an execution report does not claim absolute READ ONLY.
 
 ## Machine report contract
 

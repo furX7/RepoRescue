@@ -248,6 +248,7 @@ def diagnose(
     executions: Sequence[ExecutionResult] = (),
     *, python_requirement: Evidence | None = None,
     local_environment: Evidence | None = None,
+    startup_probe: Evidence | None = None,
 ) -> tuple[list[DiagnosisResult], list[Evidence]]:
     """Return (diagnoses, evidence), preserving positive and blocked outcomes too.
 
@@ -514,4 +515,62 @@ def diagnose(
                 ),
             ))
 
+    if startup_probe is not None:
+        evidence.append(startup_probe)
+        startup_diagnosis = _diagnose_startup(startup_probe)
+        if startup_diagnosis is not None:
+            diagnoses.append(startup_diagnosis)
+
     return diagnoses, evidence
+
+
+def _diagnose_startup(item: Evidence) -> DiagnosisResult | None:
+    status = item.metadata.get('execution_status')
+    reference = item.evidence_id
+    if status == 'timeout':
+        return DiagnosisResult(
+            problem='The startup probe remained running beyond the observation window.',
+            category='startup', severity='INFO', confidence=1.0,
+            source='rule:startup_observation_timeout', evidence_refs=(reference,),
+            diagnosis_id='startup_observation_timeout',
+            recommended_actions=('Review whether the entrypoint is expected to remain running, such as a service.',),
+            root_cause_chain=(RootCauseStep(
+                'startup:observation', 'Startup observation window ended',
+                'This outcome does not establish a hang, deadlock, or failure to start.', (reference,),
+            ),),
+        )
+    if status != 'failed':
+        return None
+    exit_code = item.metadata.get('exit_code')
+    nonzero = isinstance(exit_code, int) and exit_code != 0
+    problem = (
+        'The supported startup probe exited with a non-zero status.' if nonzero
+        else 'The supported startup probe could not be launched or completed.'
+    )
+    return DiagnosisResult(
+        problem=problem, category='startup', severity='ERROR', confidence=1.0,
+        source='rule:startup_probe_failed', evidence_refs=(reference,),
+        diagnosis_id='startup_probe_failed',
+        recommended_actions=('Review captured startup output and any independent, more specific diagnosis before retrying.',),
+        root_cause_chain=(
+            RootCauseStep('startup:entrypoint', 'Supported root main.py entrypoint selected',
+                          'The startup policy validated the supported entrypoint before attempting execution.', (reference,)),
+            RootCauseStep('startup:execution', 'Confirmed startup probe attempted',
+                          'The caller explicitly confirmed this restricted project execution probe.', (reference,)),
+            RootCauseStep('startup:outcome', f'Process exited with code {exit_code}' if nonzero else 'Process completion was not established',
+                          'The captured outcome is a symptom; it does not establish an underlying project defect.', (reference,)),
+        ),
+        repair_plan=RepairPlan(
+            id='preview:startup_probe_failed', diagnosis_id='startup_probe_failed', risk='LOW',
+            summary='Inspect the captured startup error and resolve the most specific diagnosed failure before retrying.',
+            actions=(RepairAction(
+                'startup:review', 'Review stdout/stderr evidence and resolve any independently supported specific diagnosis before an explicitly confirmed retry.',
+                (), True, True,
+            ),),
+            verification_steps=(
+                VerificationStep('startup:retry', 'After explicit confirmation, rerun the same supported startup probe.', 'command'),
+                VerificationStep('startup:failure', 'Confirm the same failure does not recur; exit code 0 establishes only successful probe completion.', 'manual'),
+                VerificationStep('startup:timeout', 'Report continued execution beyond the observation window separately; do not count timeout as verified success.', 'manual'),
+            ),
+        ),
+    )

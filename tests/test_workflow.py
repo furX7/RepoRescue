@@ -42,7 +42,8 @@ class WorkflowTests(unittest.TestCase):
         self.add_file()
         result = run_workflow(self.project)
         self.assertEqual(result.detection.level, "likely")
-        self.assertEqual(len(result.execution_results), 1)
+        self.assertEqual(len(result.execution_results), 2)
+        self.assertEqual(result.execution_results[1].status, 'requires_confirmation')
         self.assertEqual(result.execution_results[0].status, "success")
         self.assertEqual(result.execution_results[0].command.arguments, ("--version",))
         self.assertTrue(result.environment.python_callable)
@@ -88,7 +89,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(len(result.diagnostics), 1)
         self.assertEqual(result.diagnostics[0].source, "rule:python_version_probe_failed")
         self.assertIn("launch failed", result.terminal_report)
-        self.assertIn("status=failed", result.evidence[-1].summary)
+        self.assertIn("status=failed", next(item.summary for item in result.evidence if item.evidence_id == 'execution:0'))
 
     def test_timeout_is_diagnosis_and_updates_environment(self) -> None:
         self.add_file()
@@ -98,7 +99,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertFalse(result.environment.python_callable)
         self.assertEqual(result.execution_results[0].status, "timeout")
         self.assertEqual(result.diagnostics[0].severity, "ERROR")
-        self.assertIn("timed_out=True", result.evidence[-1].summary)
+        self.assertIn("timed_out=True", next(item.summary for item in result.evidence if item.evidence_id == 'execution:0'))
 
     def test_nonzero_exit_is_diagnosis(self) -> None:
         self.add_file()

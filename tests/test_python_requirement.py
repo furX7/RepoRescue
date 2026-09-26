@@ -253,7 +253,8 @@ class PythonRequirementTests(unittest.TestCase):
         self.assertEqual(snapshot(), before)
         self.assertEqual(dict(os.environ), env)
         self.assertFalse((self.root / "__pycache__").exists())
-        self.assertEqual(len(result.execution_results), 1)
+        self.assertEqual(len(result.execution_results), 2)
+        self.assertEqual(result.execution_results[1].status, 'requires_confirmation')
 
     def test_inspection_preserves_non_final_runtime_version(self):
         class PreviewVersion(tuple):

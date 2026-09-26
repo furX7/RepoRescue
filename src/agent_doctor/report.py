@@ -140,6 +140,31 @@ def render_terminal_report(
     else:
         lines.append("- No problems detected by the current checks.")
     for item in evidence:
+        if item.kind == 'startup_probe':
+            status = item.metadata.get('execution_status')
+            if status == 'requires_confirmation':
+                lines.append('[CAUTION] Startup probe available; project code execution requires confirmation.')
+                lines.append(f"Entrypoint: {item.metadata['entrypoint']}")
+                lines.append(f"Command argv: {item.metadata['argv']}")
+                lines.append(f"Working directory: {item.metadata['cwd']}")
+                lines.append('Risk: CAUTION; reason: project code may write files, use the network, start services, or block.')
+                lines.append('No startup probe was executed.')
+            elif status == 'no_supported_entrypoint':
+                lines.append('No supported startup entrypoint was detected; only root-level main.py is supported.')
+            else:
+                lines.append(f'Startup probe: {status}; entrypoint: {item.metadata["entrypoint"]}')
+                if status in ('success', 'failed', 'timeout'):
+                    lines.append(f"Observation window: {item.metadata['timeout_seconds']} seconds; exit code: {item.metadata['exit_code']}")
+                    if item.metadata.get('stderr_excerpt'):
+                        lines.append('Startup stderr excerpt: ' + str(item.metadata['stderr_excerpt'])[:512])
+                    if status == 'success':
+                        lines.append('The supported startup probe completed successfully; this does not establish project health.')
+                    if status == 'timeout':
+                        stopped = ('The direct child was stopped after timeout.' if item.metadata.get('terminated')
+                                   else 'Direct-child termination could not be confirmed.')
+                        lines.append(stopped + ' This does not prove that the application failed to start.')
+                else:
+                    lines.append('No startup probe was executed.')
         if item.kind == "python_import_failure":
             if item.metadata.get("status") == "missing_module":
                 lines.append(f"Missing import: {item.metadata['missing_module']}")
@@ -156,7 +181,11 @@ def render_terminal_report(
                 lines.append(f"Detected interpreter: {item.metadata['detected_interpreter_path']}")
             elif status in ("ambiguous", "unavailable"):
                 lines.append("Local environment check (limitation): " + item.summary)
-    lines.append("READ ONLY: Repair preview only. Verification steps were not run; no dependency changes were made.")
+    if any(item.kind == 'startup_probe' and item.metadata.get('executed') is True for item in evidence):
+        lines.append('RepoRescue itself does not modify project files. A startup probe may execute project code and project-defined side effects are possible.')
+        lines.append('Repair preview only. Verification steps were not run; RepoRescue did not install dependencies.')
+    else:
+        lines.append("READ ONLY: Repair preview only. Verification steps were not run; no dependency changes were made.")
     lines.append("RepoRescue currently performs limited checks.")
     return "\n".join(lines)
 

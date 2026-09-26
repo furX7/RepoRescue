@@ -109,7 +109,7 @@ class Evidence:
     associated_id: str | None = None
     location: str | None = None
     masked: bool = False
-    metadata: dict[str, str | tuple[str, ...] | None] = field(default_factory=dict)
+    metadata: dict[str, str | int | float | bool | tuple[str, ...] | None] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

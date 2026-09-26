@@ -94,3 +94,28 @@ execution and one of two explicit error-line forms. Shared metadata is:
 `missing_module` adds only `missing_module`. `symbol_import_failure` adds only
 `imported_symbol` and `source_module`. Import names are not mapped to package
 distribution names. These additive metadata fields do not change schema 0.2.
+
+Startup Evidence uses kind `startup_probe`, source `python_startup_probe`, and a
+run-local ID `project:startup_probe`. Additive metadata includes:
+
+- entrypoint, interpreter, cwd: path strings (interpreter can be null).
+- argv: exact executable/argument array or null when unavailable.
+- timeout_seconds: observation limit, default 5.
+- execution_status: no_supported_entrypoint / unavailable / requires_confirmation /
+  rejected / success / failed / timeout.
+- exit_code: integer or null; duration_ms: number or null before an attempt.
+- stdout_excerpt, stderr_excerpt: at most 4096 characters each.
+- timed_out, terminated, executed, stdout_truncated, stderr_truncated: booleans
+  where an executor outcome is available. executed records known launch, not side-effect absence.
+
+Startup stdout/stderr each retain at most 64 KiB of bytes before UTF-8 decoding;
+excess is continuously drained and discarded. Truncated flags are true when bytes
+or excerpt characters were omitted, or pipe collection could not finish. They do
+not change execution_status or establish a startup failure. Schema stays 0.2.
+
+No supported entrypoint and requires_confirmation are not project errors. Nonzero
+exit is an ERROR startup symptom, timeout is INFO and not verified success, and
+exit 0 is positive evidence only. Startup/import/environment/version diagnoses
+remain independent. Repair and verification remain unexecuted plans. Metadata
+inspection is READ ONLY; confirmed startup is controlled project execution with
+possible project-defined side effects. Schema stays 0.2.

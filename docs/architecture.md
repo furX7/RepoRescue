@@ -6,6 +6,38 @@ Historical v0.1 design baseline. Current implemented behavior, limitations, and
 v0.2.0-alpha preview additions are documented in README and json-schema.md.
 Some planned safeguards (such as general secret masking) are not implemented.
 
+## Current alpha startup boundary
+
+Metadata inspection and the default CLI remain READ ONLY. A separate, explicitly
+confirmed project execution probe may execute root-level main.py. RepoRescue itself
+does not modify project files; project-defined file/network/service side effects
+are possible. Do not describe confirmed execution as absolutely read-only.
+
+The small startup.py module proposes the entrypoint and collects structured outcomes.
+commands.py independently revalidates absolute current Python, exact single absolute
+root main.py argument, cwd equal to root, readability, and resolved path containment.
+Only CAUTION is accepted; DANGEROUS and arbitrary argv remain prohibited. The existing
+version-only executor does not gain an approval bypass or general command support.
+
+The CLI has no confirmation interaction and only displays the proposal. A library
+caller must obtain informed confirmation for the exact proposal before explicitly
+setting confirm_startup=True. The workflow coordinates; diagnosis consumes startup
+Evidence and reuses independent import rules. Reports only present outcomes.
+
+The observation window defaults to 5 seconds and cannot exceed 5. Timeout is an INFO
+observation, not proof of failure or readiness. Only the direct child is killed and
+waited for; up to one second each is allowed for termination and output cleanup.
+Unconfirmed termination is explicitly recorded. Descendants and their inherited pipes
+are not supervised and may leave background output readers. Two local threads continuously
+drain startup stdout/stderr in fixed 8 KiB reads, retaining at most 64 KiB per stream
+and discarding excess. Excerpts are capped at 4096 characters; truncation does not
+change execution status. Concurrent path replacement remains a limitation. No sandbox,
+service manager, framework detector, repair executor, or new dependency is added.
+
+Absent main.py is a tool coverage limitation; unconfirmed proposals are not diagnoses.
+Nonzero startup exit produces an ERROR symptom with its own evidence chain and LOW
+repair preview. python_import, python_environment, and python_version stay independent.
+
 This document records the approved v0.1 architecture. It defines design only; implementation is gated on the user's explicit `START IMPLEMENTATION` instruction.
 
 ## Product goal

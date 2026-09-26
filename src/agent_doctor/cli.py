@@ -14,10 +14,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("project_path", help="Project directory to inspect")
     parser.add_argument("--output", help="Create a JSON report at this path; never overwrite")
+    parser.add_argument(
+        "--run-startup-probe", action="store_true",
+        help="Execute the supported project startup probe. This runs project code "
+             "and may have project-defined side effects.",
+    )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     arguments = parser.parse_args(argv)
     try:
-        result = run_workflow(arguments.project_path, arguments.output)
+        if arguments.run_startup_probe:
+            print("[CAUTION] Executing project code for the startup probe.", flush=True)
+            print("Project code may have its own side effects.", flush=True)
+        result = run_workflow(
+            arguments.project_path, arguments.output,
+            confirm_startup=arguments.run_startup_probe,
+        )
         print(result.terminal_report)
         if result.output_path is not None:
             print(f"JSON report saved: {result.output_path}")

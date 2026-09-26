@@ -200,7 +200,7 @@ class LocalEnvironmentTests(unittest.TestCase):
         diagnoses, evidence = self.diagnoses(item)
         terminal = render_terminal_report(self.project, DetectionResult("likely", ("main.py",)),
                                          self.environment, diagnoses, evidence=evidence)
-        self.assertIn("[WARNING] python_environment", terminal)
+        self.assertIn("[WARNING] Python environment", terminal)
         self.assertIn(str(path), terminal)
         self.assertIn("Detected environment: .venv", terminal)
         self.assertIn("READ ONLY", terminal)

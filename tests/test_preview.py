@@ -103,14 +103,14 @@ class PreviewTests(unittest.TestCase):
         self.assertEqual(item["repair_plan"]["diagnosis_id"], item["diagnosis_id"])
         self.assertTrue(item["repair_plan"]["verification_steps"])
 
-    def test_terminal_adds_three_short_preview_lines(self) -> None:
+    def test_terminal_groups_preview_into_three_sections(self) -> None:
         results, _ = self.run_rules(executions=(self.failed,))
         text = render_terminal_report(self.project, self.detection, self.environment, results)
         self.assertIn("Root cause:", text)
         self.assertIn("Suggested repair (preview only, LOW):", text)
         self.assertIn("Verification (planned, not run):", text)
-        self.assertEqual(sum(line.startswith(("  Root cause:", "  Suggested repair", "  Verification"))
-                             for line in text.splitlines()), 3)
+        for heading in ("Root cause:", "Repair preview:", "Verification (planned, not run):"):
+            self.assertEqual(text.splitlines().count(heading), 1)
 
     def test_normal_and_pending_results_have_no_false_plan(self) -> None:
         for executions in ((), (replace(self.failed, status="success", exit_code=0),),

@@ -10,7 +10,7 @@ the interpreter version probe, the root pyproject.toml Python requirement,
 fixed project-local interpreter paths, two explicit Python import exception lines,
 and a separately confirmed root-level main.py startup probe.
 
-RepoRescue 是面向开发者和 AI 编程 Agent 的项目故障诊断工具，基于结构化证据进行诊断，并提供根因链、修复方案预览和验证计划。默认 CLI 为 READ ONLY：不会自动修改项目、安装依赖或执行修复；经明确确认的 API 启动探测会执行项目代码，可能产生项目定义的副作用。目前为 Windows First、Python only。
+RepoRescue 是面向开发者和 AI 编程 Agent 的项目故障诊断工具，基于结构化证据进行诊断，并提供根因链、修复方案预览和验证计划。默认 CLI 为 READ ONLY：不会自动修改项目、安装依赖或执行修复；通过 --run-startup-probe 或 API 明确确认的启动探测会执行项目代码，可能产生项目定义的副作用。目前为 Windows First、Python only。
 
 **v0.2.0-alpha · Windows First · Python only · READ ONLY by default · MIT**
 
@@ -73,30 +73,35 @@ Installation is an explicit user action. RepoRescue never installs dependencies.
 - `1`: completed with ERROR/CRITICAL diagnostics.
 - `2`: invalid arguments/input, output-write failure, or tool failure.
 
-## Example terminal report
+## Quick Demo
 
-An empty directory can produce this report (interpreter details vary):
+From the repository root, after installation and environment activation:
+
+```powershell
+repo-rescue examples/fixtures/missing-module --run-startup-probe
+```
+
+Abridged output (project paths and interpreter details omitted):
 
 ```text
-RepoRescue
-Project: C:\work\sample
-Detection: unknown
-Python Environment: available; Python 3.13.1; launch not verified; executable: C:\Python\python.exe
-
-Diagnostics:
-- [WARNING] project_detection: The shallow scan found no Python project markers
-  Recommended actions:
-  - Check that the selected directory is the intended project root
-  - Check whether Python files are below the shallow scan depth
-  - Check for common Python project files
-  Evidence: detection:python
-  Root cause: Shallow scan found no Python markers
-  Suggested repair (preview only, LOW): Review the selected project root and Python file locations
-  Verification (planned, not run): Rescan the confirmed root and review actual matched Python filenames within the supported depth.
-
-READ ONLY: Repair preview only. Verification steps were not run.
-RepoRescue currently performs limited checks.
+[CAUTION] Executing project code for the startup probe.
+Findings:
+[ERROR] Python import: Python could not import the module 'reporescue_fixture_missing_dependency_xyz'.
+[ERROR] Startup probe exited with code 1.
+Root cause:
+  The requested import could not be resolved; the providing distribution is not established.
+Repair preview:
+  Confirm the intended environment and identify the distribution providing the import.
+Verification (planned, not run):
+  Re-run the import under the intended interpreter and explicitly confirmed startup probe.
 ```
+
+The demo fixture is deterministic and does not use network access or persistent file writes.
+The demo finishes in a few seconds, requires no additional installation or interactive
+confirmation, and does not create `__pycache__`. No repair actions are executed.
+Without `--run-startup-probe`, only metadata and the current interpreter are checked;
+the startup proposal remains `requires_confirmation`. The flag runs project code,
+which may have project-defined side effects in other projects.
 
 `unknown` means no markers were found within the scan limits, not that the directory
 cannot contain a Python project. No-problem reports explicitly mention limited checks.
@@ -110,7 +115,7 @@ cannot contain a Python project. No-problem reports explicitly mention limited c
 - Conservative recognition of explicit `ModuleNotFoundError: No module named ...`
   and `ImportError: cannot import name ... from ...` lines in supplied execution results.
 - Controlled current-interpreter `--version` execution.
-- Root-level `main.py` startup proposal (CAUTION); execution requires explicit API confirmation.
+- Root-level `main.py` startup proposal (CAUTION); execution requires `--run-startup-probe` or explicit API confirmation.
 - A few structured, evidence-backed diagnosis rules.
 - Short evidence-referenced root cause chains.
 - Descriptive repair previews with planned verification steps.
@@ -214,9 +219,11 @@ project root is supported. No framework, README command, module entrypoint, extr
 argument, or environment override is accepted. The command is CAUTION because it
 executes project code and may write files, use the network, start services, or block.
 
-The CLI displays the proposal, exact argv, working directory, risk, and reason,
-but never executes it: there is no CLI confirmation mechanism yet. Library callers
-must obtain informed approval for that exact proposal before calling
+The CLI displays a CAUTION proposal by default and does not execute project code.
+Pass `--run-startup-probe` to explicitly confirm the supported startup probe for
+this invocation, without an interactive prompt. The flag does not bypass the
+existing startup safety policy. Library callers must obtain informed approval
+for that exact proposal before calling
 `run_workflow(project_path, confirm_startup=True)` or `execute_startup_probe(..., confirmed=True)`.
 The boolean is the caller's approval assertion, not an interactive approval system.
 
@@ -290,8 +297,9 @@ verification steps, which are not run.
 
 [examples/fixtures](examples/fixtures/README.md) contains deterministic broken
 projects used for testing and demonstration. The fixture guide lists expected
-findings and explains explicit API confirmation for startup execution; the CLI
-only proposes startup. These examples need no network or dependency installation.
+findings and explains explicit confirmation for startup execution; the CLI
+requires `--run-startup-probe` to execute startup. These examples need no network
+or dependency installation.
 
 ## Architecture
 
@@ -320,7 +328,9 @@ python -m unittest discover
 ```
 
 Run from the repository root; no installation or manual PYTHONPATH is required.
-Integration tests use isolated fixtures and never execute their source code.
+Default-workflow integration tests do not execute project code. Startup tests
+explicitly confirm execution of tiny, audited fixtures and check that their files
+and modification times stay unchanged.
 
 ## License
 

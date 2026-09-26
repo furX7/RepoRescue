@@ -14,10 +14,16 @@ manual demos, and release verification. They need no network or third-party pack
 
 Run `repo-rescue examples/fixtures/<name>` from the repository root after installing
 RepoRescue. The CLI only inspects metadata and displays a CAUTION startup proposal;
-it has no confirmation flag and never executes these projects.
+pass `--run-startup-probe` to explicitly confirm execution of the supported root main.py.
 
 After reviewing a fixture's tiny source and explicitly confirming its execution,
-use the existing library API under the intended interpreter. For example:
+use the installed CLI under the intended interpreter. For example:
+
+```powershell
+repo-rescue examples/fixtures/missing-module --run-startup-probe
+```
+
+Library callers can use the same explicit confirmation:
 
 ```powershell
 python -c "from agent_doctor.workflow import run_workflow; print(run_workflow('examples/fixtures/missing-module', confirm_startup=True).terminal_report)"

@@ -240,7 +240,7 @@ class PythonRequirementTests(unittest.TestCase):
         with patch("agent_doctor.workflow.inspect_environment", return_value=self.environment), \
              redirect_stdout(io.StringIO()) as output:
             self.assertEqual(main([str(self.root)]), 1)
-        self.assertIn("[ERROR] python_version", output.getvalue())
+        self.assertIn("[ERROR] Python version", output.getvalue())
 
     def test_real_workflow_keeps_files_bytes_mtimes_and_environment(self):
         self.write_requirement(">=3.10,<3.13")

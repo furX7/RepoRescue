@@ -284,7 +284,7 @@ class ImportFailureDiagnosisTests(unittest.TestCase):
         report = render_terminal_report(
             self.project, self.detection, self.environment, diagnoses, evidence=evidence
         )
-        self.assertIn("python_import", report)
+        self.assertIn("Python import", report)
         self.assertIn("requests", report)
         self.assertIn("Root cause:", report)
         self.assertIn("Suggested repair", report)

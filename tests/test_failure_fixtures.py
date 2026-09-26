@@ -170,7 +170,7 @@ class FailureFixtureTests(unittest.TestCase):
 
     def test_terminal_preview_is_present_without_overclaims(self):
         terminal = self.results['missing-module'].terminal_report
-        for text in ('python_import', 'Root cause:', 'Suggested repair', 'Verification', MISSING_MODULE):
+        for text in ('Python import', 'Root cause:', 'Suggested repair', 'Verification', MISSING_MODULE):
             self.assertIn(text, terminal)
         self.assertNotIn('definitely missing', terminal)
         self.assertNotIn('project is healthy', terminal.lower())

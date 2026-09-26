@@ -9,5 +9,10 @@ This does not establish a missing PyPI distribution.
 Safety: no network, file writes, subprocesses, or third-party dependencies.
 
 Run: `repo-rescue examples/fixtures/missing-module` only inspects and proposes.
-For the real failure, review the source and explicitly confirm the library API
-execution described in the parent README. No CLI confirmation flag exists.
+For the real failure, review the source and run:
+
+```powershell
+repo-rescue examples/fixtures/missing-module --run-startup-probe
+```
+
+The flag explicitly confirms the supported startup probe, without an interactive prompt.

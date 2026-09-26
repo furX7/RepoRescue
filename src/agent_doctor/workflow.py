@@ -44,7 +44,7 @@ def run_workflow(
 
     Startup is proposal-only by default. A caller passing confirm_startup=True
     must first obtain informed approval for the exact proposal and its side effects.
-    The CLI has no confirmation mechanism and always uses the default.
+    The CLI's --run-startup-probe flag supplies this explicit confirmation.
     """
     try:
         project = scan_project(project_path)

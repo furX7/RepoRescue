@@ -118,43 +118,82 @@ def render_terminal_report(
         f"Project: {project.root_path}",
         f"Detection: {detection.level}",
         f"Python Environment: {availability}; Python {version}; {launch}; executable: {executable}",
-        "Diagnostics:",
+        "", "Findings:",
     ]
-    if diagnostics:
-        for diagnosis in diagnostics:
-            lines.append(
-                f"- [{diagnosis.severity}] {diagnosis.category}: {diagnosis.problem}"
-            )
-            if diagnosis.recommended_actions:
-                lines.append("  Recommended actions:")
-                lines.extend(f"  - {action}" for action in diagnosis.recommended_actions)
-            if diagnosis.evidence_refs:
-                lines.append(f"  Evidence: {', '.join(diagnosis.evidence_refs)}")
-            if diagnosis.root_cause_chain:
-                lines.append("  Root cause: " + " -> ".join(step.title for step in diagnosis.root_cause_chain))
-            if diagnosis.repair_plan is not None:
-                lines.append(f"  Suggested repair (preview only, {diagnosis.repair_plan.risk}): {diagnosis.repair_plan.summary}")
-                lines.append("  Verification (planned, not run): " + "; ".join(
-                    step.description.rstrip('.') for step in diagnosis.repair_plan.verification_steps
-                ))
-    else:
-        lines.append("- No problems detected by the current checks.")
+    # Sort only the presentation; JSON and independent diagnoses stay unchanged.
+    priority = {"CRITICAL": 0, "ERROR": 1, "WARNING": 2, "INFO": 3}
+    ordered = sorted(diagnostics, key=lambda item: priority.get(item.severity, 4))
+    labels = {
+        "python_import": "Python import", "python_version": "Python version",
+        "project_detection": "Project detection", "environment": "Python environment",
+        "tool/safety": "Safety", "startup": "Startup probe",
+        "python_environment": "Python environment",
+    }
+    startup = next((item for item in evidence if item.kind == 'startup_probe'), None)
+    for diagnosis in ordered:
+        problem = diagnosis.problem
+        if diagnosis.category == 'startup' and startup is not None:
+            metadata = startup.metadata
+            if metadata.get('execution_status') == 'timeout':
+                window = metadata['timeout_seconds']
+                problem = f"Startup probe exceeded the {window:g} second observation window."
+            elif metadata.get('exit_code') is not None:
+                problem = f"Startup probe exited with code {metadata['exit_code']}."
+        label = labels.get(diagnosis.category, diagnosis.category.replace('_', ' ').capitalize())
+        if diagnosis.category == 'startup' and startup is not None:
+            lines.append(f"[{diagnosis.severity}] {problem}")
+        else:
+            lines.append(f"[{diagnosis.severity}] {label}: {problem}")
+    if not ordered:
+        if startup is not None and startup.metadata.get('execution_status') == 'success':
+            lines.append('No additional findings from the current limited checks.')
+        else:
+            lines.append('No problems detected by the current checks.')
+
+    # Import details are shown once, beside findings; raw tracebacks stay in JSON.
+    for item in evidence:
+        if item.kind == 'python_import_failure':
+            if item.metadata.get('status') == 'missing_module':
+                lines.append(f"  Missing import: {item.metadata['missing_module']}")
+            elif item.metadata.get('status') == 'symbol_import_failure':
+                lines.append(f"  Import module: {item.metadata['source_module']}")
+                lines.append(f"  Import symbol: {item.metadata['imported_symbol']}")
+            lines.append(f"  Import evidence: {item.metadata['raw_message']}")
+
+    causes = [item for item in ordered if item.root_cause_chain]
+    if causes:
+        lines.extend(('', 'Root cause:'))
+        for diagnosis in causes:
+            lines.append('  ' + ' -> '.join(step.title for step in diagnosis.root_cause_chain))
+    plans = [item.repair_plan for item in ordered if item.repair_plan is not None]
+    if plans:
+        lines.extend(('', 'Repair preview:'))
+        for plan in plans:
+            lines.append(f"  Suggested repair (preview only, {plan.risk}): {plan.summary}")
+        lines.extend(('', 'Verification (planned, not run):'))
+        for plan in plans:
+            lines.extend(f"  - {step.description}" for step in plan.verification_steps)
+    actions = [item for item in ordered if item.repair_plan is None and item.recommended_actions]
+    if actions:
+        lines.append('Recommended actions:')
+        for item in actions:
+            lines.extend(f"  - {action}" for action in item.recommended_actions)
+    lines.append('')
     for item in evidence:
         if item.kind == 'startup_probe':
             status = item.metadata.get('execution_status')
             if status == 'requires_confirmation':
                 lines.append('[CAUTION] Startup probe available; project code execution requires confirmation.')
                 lines.append(f"Entrypoint: {item.metadata['entrypoint']}")
-                lines.append(f"Command argv: {item.metadata['argv']}")
-                lines.append(f"Working directory: {item.metadata['cwd']}")
-                lines.append('Risk: CAUTION; reason: project code may write files, use the network, start services, or block.')
+                lines.append('Use --run-startup-probe to execute the supported probe.')
                 lines.append('No startup probe was executed.')
             elif status == 'no_supported_entrypoint':
-                lines.append('No supported startup entrypoint was detected; only root-level main.py is supported.')
+                lines.append('No supported startup entrypoint was detected.')
+                lines.append('Current alpha supports only root-level main.py.')
             else:
-                lines.append(f'Startup probe: {status}; entrypoint: {item.metadata["entrypoint"]}')
+                if status not in ('success', 'failed', 'timeout'):
+                    lines.append('Startup probe is unavailable or was rejected by the safety policy.')
                 if status in ('success', 'failed', 'timeout'):
-                    lines.append(f"Observation window: {item.metadata['timeout_seconds']} seconds; exit code: {item.metadata['exit_code']}")
                     if item.metadata.get('stderr_excerpt'):
                         excerpt = str(item.metadata['stderr_excerpt'])
                         import_already_shown = any(
@@ -166,20 +205,14 @@ def render_terminal_report(
                         if not import_already_shown:
                             lines.append('Startup stderr excerpt: ' + excerpt[:512])
                     if status == 'success':
-                        lines.append('The supported startup probe completed successfully; this does not establish project health.')
+                        lines.append('Startup probe completed successfully.')
                     if status == 'timeout':
                         stopped = ('The direct child was stopped after timeout.' if item.metadata.get('terminated')
                                    else 'Direct-child termination could not be confirmed.')
-                        lines.append(stopped + ' This does not prove that the application failed to start.')
+                        lines.append('This may be normal for a long-running application.')
+                        lines.append(stopped)
                 else:
                     lines.append('No startup probe was executed.')
-        if item.kind == "python_import_failure":
-            if item.metadata.get("status") == "missing_module":
-                lines.append(f"Missing import: {item.metadata['missing_module']}")
-            elif item.metadata.get("status") == "symbol_import_failure":
-                lines.append(f"Import module: {item.metadata['source_module']}")
-                lines.append(f"Import symbol: {item.metadata['imported_symbol']}")
-            lines.append(f"Import evidence: {item.metadata['raw_message']}")
         if item.kind == "python_requirement" and item.metadata.get("status") not in ("compatible", "incompatible"):
             lines.append("Python requirement check (tool limitation / metadata notice): " + item.summary)
         if item.kind == "local_python_environment":
@@ -194,6 +227,7 @@ def render_terminal_report(
         lines.append('Repair preview only. Verification steps were not run; RepoRescue did not install dependencies.')
     else:
         lines.append("READ ONLY: Repair preview only. Verification steps were not run; no dependency changes were made.")
+    lines.append("No repair actions were executed.")
     lines.append("RepoRescue currently performs limited checks.")
     return "\n".join(lines)
 

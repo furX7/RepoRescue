@@ -73,10 +73,10 @@ class ReportTests(unittest.TestCase):
             self.project, self.detection, self.environment, self.diagnostics,
         )
         for value in (
-            "[ERROR] environment: Python probe failed",
-            "[WARNING] project_detection: Scan was limited",
-            "[INFO] tool/safety: Command was blocked",
-            "Recommended actions:", "Check Python", "Evidence: execution:0",
+            "[ERROR] Python environment: Python probe failed",
+            "[WARNING] Project detection: Scan was limited",
+            "[INFO] Safety: Command was blocked",
+            "Recommended actions:", "Check Python", "Findings:",
             "Detection: likely", "launch verified",
             "RepoRescue currently performs limited checks.",
         ):

@@ -142,7 +142,7 @@ class WorkflowTests(unittest.TestCase):
         with patch("agent_doctor.commands.subprocess.run", side_effect=OSError("launch failed")):
             code, stdout, stderr = self.run_cli(str(self.project))
         self.assertEqual(code, 1)
-        self.assertIn("[ERROR] environment", stdout)
+        self.assertIn("[ERROR] Python environment", stdout)
         self.assertEqual(stderr, "")
 
     def test_cli_invalid_path_exits_two(self) -> None:

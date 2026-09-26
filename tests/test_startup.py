@@ -317,7 +317,7 @@ class StartupTests(unittest.TestCase):
         self.assertEqual(startup['metadata']['argv'], [sys.executable, str(self.entry)])
         terminal = render_terminal_report(project, detect_python_project(project), environment,
                                           diagnoses, evidence=evidence)
-        self.assertIn('Startup probe: failed', terminal)
+        self.assertIn('Startup probe exited with code 1', terminal)
         self.assertIn('project-defined side effects', terminal)
 
 

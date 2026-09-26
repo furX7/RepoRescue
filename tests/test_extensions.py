@@ -382,10 +382,12 @@ class PythonExtensionTests(unittest.TestCase):
                     diagnose(project, detection, environment, (execution,)),
                 )
 
-    def test_official_workflow_does_not_invoke_facade(self):
-        with patch.object(PythonCoreExtension, "detect", side_effect=AssertionError("facade invoked")), \
+    def test_official_workflow_invokes_facade_only_static_builtins(self):
+        detect = PythonCoreExtension.detect
+        with patch.object(PythonCoreExtension, "detect", autospec=True, side_effect=detect) as called, \
                 patch.object(FakeLanguageExtension, "detect", side_effect=AssertionError("fake invoked")):
             result = run_workflow(self.root)
+        called.assert_called_once()
         self.assertEqual(result.detection.level, "unknown")
         self.assertEqual(result.report["schema_version"], "0.2")
         self.assertNotIn("extensions", result.report)
@@ -408,10 +410,12 @@ class PythonExtensionTests(unittest.TestCase):
                         self.assertNotIn(forbidden, output.getvalue())
                 else:
                     self.assertIn(__version__, output.getvalue())
+        detect = PythonCoreExtension.detect
         with redirect_stdout(io.StringIO()), patch.object(
-            PythonCoreExtension, "detect", side_effect=AssertionError("facade invoked"),
-        ):
+            PythonCoreExtension, "detect", autospec=True, side_effect=detect,
+        ) as called:
             self.assertEqual(main([str(self.root)]), 0)
+        called.assert_called_once()
 
     def test_runtime_dependencies_remain_empty(self):
         path = Path(__file__).resolve().parents[1] / "pyproject.toml"

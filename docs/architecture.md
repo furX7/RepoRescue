@@ -44,7 +44,8 @@ This document records the approved v0.1 architecture. It defines design only; im
 
 This section records the implemented first extraction step of v0.3, following
 the [Notion roadmap](https://app.notion.com/p/3e71d223bf6381a8bd86ca012503c8df),
-sections 9 and 11. The remaining sections retain the historical v0.1 design.
+sections 9 and 11. The later Built-in Extension Pipeline section records step two;
+sections from Product goal onward retain the historical v0.1 design.
 
 **Core owns policy and orchestration.**
 **Extensions provide knowledge, not unrestricted authority.**
@@ -123,9 +124,9 @@ all five capabilities, platform `windows`, and required tool `python`. Its mappi
 - Planning exposes the existing diagnosis's `repair_plan`.
 - Verification exposes the supplied preview's `verification_steps`, or none.
 
-The official workflow still calls existing Python functions directly and owns
+At the first extraction step, workflow still called Python functions directly and owned
 Project → Detection → Evidence → Diagnosis → Root Cause → Repair Plan → Verification.
-The facade is exercised in tests; it is not wired into CLI or workflow. Command
+The facade was initially exercised only in tests; step two connects it to workflow. Command
 and filesystem policy, consent, timeout and output limits remain with Core. No
 extension may bypass these controls, directly execute arbitrary shell, write project
 files, alter PATH, install packages, or bypass future transaction/rollback controls.
@@ -134,9 +135,8 @@ must wait for an appropriate future Core boundary; no sandbox is claimed here.
 
 `ExtensionUnavailable`, `ExtensionIncompatible`, and `ExtensionFailure` carry the
 extension ID and a message. They respectively mean missing prerequisites/observations,
-unsupported API/platform, and a failed stage. A future invocation boundary must isolate
-failures per extension/stage, preserve other results and translate unexpected exceptions
-to local failures instead of crashing RepoRescue. This step defines semantics only.
+unsupported API/platform, and a failed stage. The first step defined semantics only;
+the built-in pipeline below now isolates these declared errors per extension/stage.
 
 The test-only `FakeLanguageExtension` implements the contracts independently of Python,
 proves metadata/capability/compatibility behavior, and uses snapshots without modifying
@@ -144,12 +144,100 @@ projects or receiving an executor. It is not in the runtime package or CLI.
 
 Future Node / Java / C++ packs can implement these same stage contracts and return
 Core Evidence, DiagnosisResult, RepairPlan and VerificationStep objects, without adding
-a language-specific orchestration algorithm. Today they cannot be registered or loaded:
-stage dispatch and discovery remain later v0.3 work. This foundation alone does not make
-the current Python-only workflow accept a new pack automatically. Dynamic loading,
-entry points, plugin folders, registry, ID conflict handling, marketplace, installation,
-isolation runtime, other-language support, repair/verification execution, rollback, GUI
+a language-specific orchestration algorithm. Step two adds static stage dispatch;
+packs still cannot be discovered or loaded dynamically. Dynamic loading,
+entry points, plugin folders, registry, marketplace, installation,
+third-party isolation runtime, other-language support, repair/verification execution, rollback, GUI
 and LLM integration are not implemented by this step. README Roadmap remains planned.
+
+## Built-in Extension Pipeline
+
+Core owns orchestration. Built-in extensions are statically configured in
+`src/agent_doctor/extension_pipeline.py`:
+
+```python
+BUILTIN_EXTENSIONS = (PythonCoreExtension(),)
+```
+
+Python is currently the only built-in extension. No dynamic discovery, entry
+points, plugin folders, registry service or third-party loading is implemented.
+
+```text
+Core workflow
+  → scan project / inspect current runtime
+  → prepare_extensions: unique IDs + compatibility
+  → DETECT
+  → INSPECT
+  → Core policy / executor: existing version and startup probes
+  → DIAGNOSE
+  → PLAN_REPAIR (preview)
+  → VERIFY (planned steps)
+  → existing terminal / JSON report
+```
+
+`workflow.py` explicitly calls `run_extension_stage` once for each stage, in this
+order. The helper runs extensions sequentially in tuple order and checks each
+declared capability. There is no run-everything method, concurrent execution,
+manager, lifecycle framework or extension-controlled workflow.
+
+`prepare_extensions` rejects duplicate metadata IDs as a configuration error,
+then invokes the existing compatibility checker for each extension. Core supplies
+the canonical current platform and current Python availability without scanning
+other tools. API mismatch, unsupported platform and missing required tools are
+recorded with extension ID, status and missing tool names; incompatible extensions
+never receive a stage call.
+
+`PythonCoreExtension` remains a thin adapter: detection, metadata collection,
+diagnosis and previews delegate to the existing functions/models. Its optional
+`propose_diagnostic_commands` adapter returns the existing version-probe descriptions
+during INSPECT. An internal structural Protocol checks for this optional built-in
+method; the five SDK stage contracts and their capabilities are unchanged. Evidence
+providers without this method still work. This adds no execution capability:
+`CommandProposal` is data, never permission. Workflow has no direct dependency on
+`python_plugin.py` or `diagnosis.py`. Existing startup proposals/capture remain in
+the Core startup boundary, and all executions retain the unchanged allowlists,
+consent, cwd/path checks, timeouts and output limits in `commands.py`.
+
+Small internal dataclasses hold per-extension stage outputs (`ExtensionRun`),
+merged results (`ExtensionRunResult`) and local failures (`ExtensionFailureInfo`).
+Inputs expose snapshots, evidence and captured outcomes; no executor, shell,
+filesystem service or mutable global context is passed to extensions.
+
+Each extension owns its evidence batch and diagnoses. The diagnosis dual return
+contains that extension's complete evidence batch, including derived evidence;
+it replaces its collection batch to preserve the existing Python evidence order
+without duplicating collected observations. Final batches and diagnoses append
+in static extension order. There is no ranking, correlation or deduplication
+engine. Packs must use distinct evidence IDs and return the observations needed
+by their findings. Repair previews remain attached to their originating diagnosis;
+a planner cannot attach a preview for another diagnosis. Verification updates
+that preview's planned steps, retaining `not_executed` / `not_run`. Schema 0.2
+stores verification in a repair preview, so orphan verification steps or an empty
+verification list for a preview are recorded as local failures.
+
+Extension failures are isolated at the contract boundary. Only
+`ExtensionUnavailable`, `ExtensionIncompatible` and `ExtensionFailure` are caught.
+A failed stage commits no partial batch; earlier completed outputs survive and
+that extension's later stages are skipped. Other compatible extensions continue.
+Unexpected exceptions remain visible; `KeyboardInterrupt` and `SystemExit` are
+never swallowed. This is minimal in-process failure handling, not a sandbox.
+
+Local failures remain internal in `WorkflowResult.extension_failures`. If no
+diagnosis extension is usable before probes, Core skips execution; if none
+completes diagnosis, it returns a controlled `WorkflowError` carrying these
+failures. CLI uses its existing tool-error path (exit 2) with an explicit limitation,
+instead of constructing normal findings or a healthy report. Successful extensions
+still return their results when another extension fails. CLI options, package
+version, terminal output on existing successful paths, JSON schema 0.2 and existing
+machine-report capabilities remain unchanged; no extension metadata is serialized.
+
+Future Node / Java / C++ packs can implement the same stage contracts and be
+added to the static tuple, using this common Core sequence. They do not need a
+language-specific workflow. Tool availability descriptors and any newly supported
+probe policy must be supplied by Core; current execution support is still limited
+to the existing Python probes. This step does not implement other languages,
+dynamic enable/disable, manifest file parsing, plugin installation/marketplace,
+repair execution, verification execution, transaction/rollback, GUI or LLM support.
 
 ## Product goal
 

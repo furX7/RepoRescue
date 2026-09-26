@@ -115,7 +115,7 @@ class WorkflowTests(unittest.TestCase):
         proposal = propose_diagnostic_commands(project, inspect_environment(project))[0]
         for risk, status in (("CAUTION", "requires_confirmation"), ("DANGEROUS", "rejected")):
             with self.subTest(risk=risk):
-                with patch("agent_doctor.workflow.propose_diagnostic_commands",
+                with patch("agent_doctor.python_extension.PythonCoreExtension.propose_diagnostic_commands",
                            return_value=(replace(proposal, risk=risk),)):
                     with patch("agent_doctor.commands.subprocess.run") as run:
                         result = run_workflow(self.project)

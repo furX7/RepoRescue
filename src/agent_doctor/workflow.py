@@ -1,26 +1,49 @@
-"""Thin coordination of the existing v0.1 diagnostic steps."""
+"""Core coordination of static extensions and existing controlled probes."""
 
 from dataclasses import dataclass, replace
 from pathlib import Path
+import sys
 from typing import Any
 
 from .commands import execute_command, execute_startup_probe
-from .diagnosis import diagnose
+from .extension_pipeline import (
+    ExtensionFailureInfo, ExtensionRun, merge_detection, merge_results,
+    prepare_extensions, run_extension_stage,
+)
+from .extensions import Capability, CompatibilityStatus, ExtensionEnvironment
 from .models import (
     DetectionResult, DiagnosisResult, EnvironmentInfo, Evidence,
     ExecutionResult, ProjectInfo,
 )
 from .project import inspect_environment, scan_project
-from .python_plugin import (
-    detect_python_project, inspect_local_python_environment,
-    inspect_python_requirement, propose_diagnostic_commands,
-)
 from .report import build_json_report, render_terminal_report, write_json_report
 from .startup import collect_startup_evidence, propose_startup_probe
 
 
 class WorkflowError(RuntimeError):
     """RepoRescue could not complete the requested diagnostic task."""
+
+    def __init__(
+        self, message: str, *, extension_failures: tuple[ExtensionFailureInfo, ...] = (),
+    ) -> None:
+        self.extension_failures = extension_failures
+        super().__init__(message)
+
+
+def _require_diagnosis_extension(runs: tuple[ExtensionRun, ...]) -> None:
+    if any(not run.failures and Capability.DIAGNOSE in run.extension.metadata.capabilities
+           for run in runs):
+        return
+    failures = merge_results(runs).failures
+    reasons = "; ".join(
+        f"{item.extension_id}: "
+        f"{item.status.value if isinstance(item.status, CompatibilityStatus) else item.status}"
+        for item in failures
+    )
+    raise WorkflowError(
+        "No built-in diagnosis extension is available" + (f" ({reasons})" if reasons else ""),
+        extension_failures=failures,
+    )
 
 
 @dataclass(frozen=True)
@@ -34,6 +57,7 @@ class WorkflowResult:
     report: dict[str, Any]
     terminal_report: str
     output_path: Path | None
+    extension_failures: tuple[ExtensionFailureInfo, ...] = ()
 
 
 def run_workflow(
@@ -48,11 +72,17 @@ def run_workflow(
     """
     try:
         project = scan_project(project_path)
-        detection = detect_python_project(project)
         inspected_environment = inspect_environment(project)
-        local_environment = inspect_local_python_environment(project, inspected_environment)
-        requirement_evidence = inspect_python_requirement(project, inspected_environment)
-        proposals = propose_diagnostic_commands(project, inspected_environment)
+        extension_environment = ExtensionEnvironment(
+            platform={"win32": "windows", "darwin": "macos"}.get(sys.platform, sys.platform),
+            available_tools=frozenset({"python"} if inspected_environment.python_available else ()),
+        )
+        runs = prepare_extensions(extension_environment)
+        runs = run_extension_stage(runs, Capability.DETECT, project, inspected_environment)
+        detection = merge_detection(runs)
+        runs = run_extension_stage(runs, Capability.INSPECT, project, inspected_environment)
+        _require_diagnosis_extension(runs)
+        proposals = merge_results(runs).command_proposals
         executions = tuple(execute_command(command, project.root_path) for command in proposals)
         startup_command, startup_observation = propose_startup_probe(project, inspected_environment)
         if startup_command is not None:
@@ -61,11 +91,15 @@ def run_workflow(
             )
             startup_observation = collect_startup_evidence(startup_observation, startup_execution)
             executions += (startup_execution,)
-        diagnostics, evidence = diagnose(
-            project, detection, inspected_environment, executions,
-            python_requirement=requirement_evidence, local_environment=local_environment,
-            startup_probe=startup_observation,
+        runs = run_extension_stage(
+            runs, Capability.DIAGNOSE, project, inspected_environment,
+            executions=executions, core_evidence=(startup_observation,),
         )
+        _require_diagnosis_extension(runs)
+        runs = run_extension_stage(runs, Capability.PLAN_REPAIR, project, inspected_environment)
+        runs = run_extension_stage(runs, Capability.VERIFY, project, inspected_environment)
+        extension_result = merge_results(runs)
+        diagnostics, evidence = extension_result.diagnoses, extension_result.evidence
 
         # Only the version probe can update interpreter launch validation.
         environment = inspected_environment
@@ -91,4 +125,5 @@ def run_workflow(
         execution_results=executions, evidence=tuple(evidence),
         diagnostics=tuple(diagnostics), report=report,
         terminal_report=terminal, output_path=saved_path,
+        extension_failures=extension_result.failures,
     )

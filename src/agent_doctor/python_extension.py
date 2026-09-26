@@ -5,12 +5,12 @@ from collections.abc import Sequence
 from .diagnosis import diagnose
 from .extensions import Capability, EXTENSION_API_VERSION, ExtensionMetadata
 from .models import (
-    DetectionResult, DiagnosisResult, EnvironmentInfo, Evidence, ExecutionResult,
+    CommandProposal, DetectionResult, DiagnosisResult, EnvironmentInfo, Evidence, ExecutionResult,
     ProjectInfo, RepairPlan, VerificationStep,
 )
 from .python_plugin import (
     detect_python_project, inspect_local_python_environment,
-    inspect_python_requirement,
+    inspect_python_requirement, propose_diagnostic_commands,
 )
 
 
@@ -19,8 +19,9 @@ class PythonCoreExtension:
 
     Collection reuses the bounded read-only metadata inspectors. Diagnosis
     delegates to the existing combined diagnosis/evidence function. Startup
-    observations and captured executions must be supplied by Core; this facade
-    never proposes or executes a probe. Plans/verification are existing previews.
+    observations and captured executions must be supplied by Core. Version probe
+    proposals delegate to the existing function; no probe is executed here.
+    Plans/verification are existing previews.
     """
 
     @property
@@ -62,6 +63,11 @@ class PythonCoreExtension:
             local_environment=observation("local_python_environment"),
             startup_probe=observation("startup_probe"),
         )
+
+    def propose_diagnostic_commands(
+        self, project: ProjectInfo, environment: EnvironmentInfo,
+    ) -> tuple[CommandProposal, ...]:
+        return propose_diagnostic_commands(project, environment)
 
     def plan(
         self, project: ProjectInfo, diagnosis: DiagnosisResult,

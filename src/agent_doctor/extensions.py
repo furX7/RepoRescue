@@ -98,9 +98,9 @@ def check_compatibility(
 class ExtensionError(RuntimeError):
     """Extension-local outcome, not a WorkflowError or project diagnosis.
 
-    Future Core invocation boundaries must isolate these errors per extension
-    and stage and translate unexpected exceptions into ExtensionFailure. No
-    invocation/isolation runtime is installed by this contract extraction.
+    The built-in pipeline isolates these declared errors per extension/stage.
+    Unexpected exceptions remain visible as Core errors. There is no third-party
+    loading, process isolation or sandbox implied by this error contract.
     """
 
     def __init__(self, extension_id: str, message: str) -> None:
@@ -109,7 +109,7 @@ class ExtensionError(RuntimeError):
 
 
 class ExtensionUnavailable(ExtensionError):
-    """Required tool or observation is unavailable; skip the affected stage."""
+    """Required tool or observation is unavailable; skip remaining stages."""
 
 
 class ExtensionIncompatible(ExtensionError):

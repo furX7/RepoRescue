@@ -8,6 +8,7 @@ to execute commands or mutate projects. These types are not a Python sandbox.
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
+import re
 from typing import Protocol, runtime_checkable
 
 from .models import (
@@ -17,6 +18,20 @@ from .models import (
 
 
 EXTENSION_API_VERSION = "1"
+
+
+class PackKind(Enum):
+    LANGUAGE = "language"
+    TOOLCHAIN = "toolchain"
+    FRAMEWORK = "framework"
+    ENVIRONMENT = "environment"
+    INTEGRATION = "integration"
+
+
+def validate_pack_id(identifier: str) -> None:
+    """Require a stable machine-readable ID; dots allow domain namespaces."""
+    if not isinstance(identifier, str) or re.fullmatch(r"[a-z0-9][a-z0-9._-]*", identifier) is None:
+        raise ValueError(f"Invalid pack id: {identifier!r}")
 
 
 class Capability(Enum):
@@ -33,6 +48,9 @@ class ExtensionMetadata:
 
     Platform and tool identifiers are exact, canonical names (e.g. windows,
     python). Tool requirements express availability only, not version ranges.
+    A Pack groups implementations of these contracts, not another runtime.
+    The language default preserves the previous constructor shape; other kinds
+    must be declared explicitly. API compatibility uses EXTENSION_API_VERSION.
     """
 
     id: str
@@ -42,8 +60,16 @@ class ExtensionMetadata:
     capabilities: frozenset[Capability]
     supported_platforms: tuple[str, ...]
     required_tools: tuple[str, ...] = ()
+    kind: PackKind = PackKind.LANGUAGE
 
     def __post_init__(self) -> None:
+        validate_pack_id(self.id)
+        for field in ("name", "version", "api_version"):
+            value = getattr(self, field)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"Pack {self.id!r} requires a non-empty {field}")
+        if not isinstance(self.kind, PackKind):
+            raise TypeError(f"Pack {self.id!r} kind must be a PackKind member")
         if not isinstance(self.capabilities, frozenset) or any(
             not isinstance(item, Capability) for item in self.capabilities
         ):
@@ -126,6 +152,33 @@ class Extension(Protocol):
     def metadata(self) -> ExtensionMetadata: ...
 
 
+def validate_pack(pack: Extension) -> None:
+    """Check declared stages before dispatch; do not invoke implementations.
+
+    Callable presence is a lightweight configuration check, not signature
+    validation, permission, trust, or a sandbox. Component composition stays
+    inside each Pack and uses the same capability protocols.
+    """
+    metadata = pack.metadata
+    methods = (
+        (Capability.DETECT, "detect"),
+        (Capability.INSPECT, "collect"),
+        (Capability.DIAGNOSE, "diagnose"),
+        (Capability.PLAN_REPAIR, "plan"),
+        (Capability.VERIFY, "build_verification"),
+    )
+    for capability, method in methods:
+        if capability in metadata.capabilities and not callable(getattr(pack, method, None)):
+            raise ValueError(
+                f"Pack {metadata.id!r} declares {capability.value} but is missing callable {method}"
+            )
+    if metadata.capabilities:
+        try:
+            validate_pack_id(getattr(pack, "id", None))
+        except ValueError as error:
+            raise ValueError(f"Pack {metadata.id!r} requires a stable capability provider id") from error
+
+
 @runtime_checkable
 class Detector(Protocol):
     @property
@@ -146,6 +199,12 @@ class EvidenceProvider(Protocol):
 
 @runtime_checkable
 class DiagnosisRule(Protocol):
+    """Pack-owned rule or grouped rule provider with a stable ID.
+
+    New component IDs should be namespaced by Pack. DiagnosisResult.source
+    identifies the producing rule; diagnosis_id identifies its finding. Existing
+    Python rule identities remain unchanged.
+    """
     @property
     def id(self) -> str: ...
 
@@ -164,6 +223,7 @@ class DiagnosisRule(Protocol):
 
 @runtime_checkable
 class RepairPlanner(Protocol):
+    """Pack-owned description of repairs and risk; never applies a repair."""
     @property
     def id(self) -> str: ...
 
@@ -175,6 +235,7 @@ class RepairPlanner(Protocol):
 
 @runtime_checkable
 class Verifier(Protocol):
+    """Pack-owned verification planning; Core owns any future execution."""
     @property
     def id(self) -> str: ...
 

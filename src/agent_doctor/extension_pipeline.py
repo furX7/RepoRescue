@@ -12,7 +12,7 @@ from typing import Literal, Protocol, cast, runtime_checkable
 from .extensions import (
     Capability, CompatibilityStatus, Detector, DiagnosisRule, EvidenceProvider,
     Extension, ExtensionEnvironment, ExtensionFailure, ExtensionIncompatible,
-    ExtensionUnavailable, RepairPlanner, Verifier, check_compatibility,
+    ExtensionUnavailable, RepairPlanner, Verifier, check_compatibility, validate_pack,
 )
 from .models import (
     CommandProposal, DetectionResult, DiagnosisResult, EnvironmentInfo, Evidence, ExecutionResult,
@@ -63,11 +63,13 @@ class ExtensionRunResult:
 def prepare_extensions(
     environment: ExtensionEnvironment, extensions: Sequence[Extension] | None = None,
 ) -> tuple[ExtensionRun, ...]:
-    """Validate static IDs and check compatibility before any stage call."""
+    """Validate static Pack declarations and compatibility before stage calls."""
     extensions = BUILTIN_EXTENSIONS if extensions is None else extensions
     identifiers = [extension.metadata.id for extension in extensions]
     if len(set(identifiers)) != len(identifiers):
         raise ValueError("Duplicate built-in extension id")
+    for extension in extensions:
+        validate_pack(extension)
 
     runs = []
     for extension in extensions:

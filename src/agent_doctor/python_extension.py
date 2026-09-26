@@ -1,9 +1,9 @@
-"""Thin contract facade for the built-in Python pack; not a new workflow."""
+"""Thin contract facade for the built-in Python Language Pack."""
 
 from collections.abc import Sequence
 
 from .diagnosis import diagnose
-from .extensions import Capability, EXTENSION_API_VERSION, ExtensionMetadata
+from .extensions import Capability, EXTENSION_API_VERSION, ExtensionMetadata, PackKind
 from .models import (
     CommandProposal, DetectionResult, DiagnosisResult, EnvironmentInfo, Evidence, ExecutionResult,
     ProjectInfo, RepairPlan, VerificationStep,
@@ -15,13 +15,14 @@ from .python_plugin import (
 
 
 class PythonCoreExtension:
-    """Express existing Python knowledge without copying or moving rules.
+    """Built-in Language Pack grouping Python knowledge through one adapter.
 
     Collection reuses the bounded read-only metadata inspectors. Diagnosis
     delegates to the existing combined diagnosis/evidence function. Startup
     observations and captured executions must be supplied by Core. Version probe
     proposals delegate to the existing function; no probe is executed here.
-    Plans/verification are existing previews.
+    Rules, repair planning and verification planning belong to this Pack.
+    Plans/verification are existing previews; execution authority stays in Core.
     """
 
     @property
@@ -30,7 +31,7 @@ class PythonCoreExtension:
             id="python.core", name="Python Core Pack", version="0.1",
             api_version=EXTENSION_API_VERSION,
             capabilities=frozenset(Capability), supported_platforms=("windows",),
-            required_tools=("python",),
+            required_tools=("python",), kind=PackKind.LANGUAGE,
         )
 
     @property

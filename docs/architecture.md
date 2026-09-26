@@ -44,7 +44,8 @@ This document records the approved v0.1 architecture. It defines design only; im
 
 This section records the implemented first extraction step of v0.3, following
 the [Notion roadmap](https://app.notion.com/p/3e71d223bf6381a8bd86ca012503c8df),
-sections 9 and 11. The later Built-in Extension Pipeline section records step two;
+sections 9 and 11. Built-in Extension Pipeline records step two, and Pack Architecture
+records step three;
 sections from Product goal onward retain the historical v0.1 design.
 
 **Core owns policy and orchestration.**
@@ -93,7 +94,7 @@ Extensions must not mutate caller inputs (including the existing shallow-frozen
 not signature correctness or trust; type annotations and behavior tests also matter.
 
 `ExtensionMetadata` is a frozen Python dataclass with `id`, `name`, `version`,
-`api_version`, `capabilities`, `supported_platforms`, and `required_tools`.
+`api_version`, `kind`, `capabilities`, `supported_platforms`, and `required_tools`.
 Capabilities are a `frozenset[Capability]` containing only DETECT, INSPECT,
 DIAGNOSE, PLAN_REPAIR, and VERIFY. Arbitrary strings are rejected. Shell, network,
 installation and file writes are privileged Core-controlled actions, not extension
@@ -165,7 +166,7 @@ points, plugin folders, registry service or third-party loading is implemented.
 ```text
 Core workflow
   → scan project / inspect current runtime
-  → prepare_extensions: unique IDs + compatibility
+  → prepare_extensions: unique IDs + Pack validation + compatibility
   → DETECT
   → INSPECT
   → Core policy / executor: existing version and startup probes
@@ -181,7 +182,8 @@ declared capability. There is no run-everything method, concurrent execution,
 manager, lifecycle framework or extension-controlled workflow.
 
 `prepare_extensions` rejects duplicate metadata IDs as a configuration error,
-then invokes the existing compatibility checker for each extension. Core supplies
+then validates declared capability implementations before invoking the existing
+compatibility checker for each extension. Core supplies
 the canonical current platform and current Python availability without scanning
 other tools. API mismatch, unsupported platform and missing required tools are
 recorded with extension ID, status and missing tool names; incompatible extensions
@@ -238,6 +240,103 @@ probe policy must be supplied by Core; current execution support is still limite
 to the existing Python probes. This step does not implement other languages,
 dynamic enable/disable, manifest file parsing, plugin installation/marketplace,
 repair execution, verification execution, transaction/rollback, GUI or LLM support.
+
+## Pack Architecture
+
+A **Pack** is a group of diagnostic knowledge and recovery planning capabilities
+for one technical domain. It is the organizational / distribution unit of the
+existing Extension contracts, not a second execution framework:
+
+- **Extension Contract:** what capability can be provided.
+- **Pack:** how domain knowledge is grouped and distributed.
+- **Core:** owns orchestration, authority and safety.
+
+```text
+RepoRescue Core
+│
+├─ Workflow
+├─ Safety / Execution
+├─ Core Models
+│
+└─ Extension Pipeline
+    │
+    └─ Python Language Pack
+        ├─ Detection
+        ├─ Evidence
+        ├─ Diagnosis Rules
+        ├─ Repair Planning
+        └─ Verification Planning
+```
+
+`PackKind` classifies domains: LANGUAGE, TOOLCHAIN, FRAMEWORK, ENVIRONMENT and
+INTEGRATION. Only the built-in Python Language Pack is implemented. Additional
+Language Packs (Node / Java / C++), Toolchain Packs (Docker / Git), Framework
+Packs (FastAPI / React / Vite), Environment Packs and Integration Packs are
+**planned**, not supported implementations.
+
+Metadata reuses `ExtensionMetadata`; `kind` is a `PackKind` member. The appended
+field defaults to LANGUAGE to preserve existing Python metadata constructor
+calls; non-language Packs must declare their kind explicitly. `PythonCoreExtension`
+retains its class name, ID `python.core`, and thin delegation to mature Python
+functions. It explicitly declares LANGUAGE because its knowledge concerns Python
+project detection, interpreter requirements, environment and import failures.
+There is one SDK contract version, `EXTENSION_API_VERSION = "1"`; no separate
+Pack API version or manifest format is introduced.
+
+Metadata construction rejects empty/malformed IDs, empty or whitespace-only
+name/version/API version, invalid kinds and invalid capability values. IDs match
+`[a-z0-9][a-z0-9._-]*` and must remain stable; dots permit domain namespaces.
+There is no semantic version parsing or dependency resolution. Before any
+compatibility check or stage call, `prepare_extensions` retains duplicate-ID
+protection and calls `validate_pack`. Each declared capability requires its
+callable implementation: detect, collect, diagnose, plan or build_verification.
+A stage provider also needs a valid stable ID. Errors name the Pack ID and the
+missing capability/method. These checks establish configuration consistency,
+not method signature correctness, trust or isolation.
+
+Diagnosis rules belong to their Pack. One adapter can initially group existing
+rules, as Python does through the unchanged `diagnose()` function. New component
+IDs should be stable and namespaced by Pack (for example `python.requires-python`).
+The existing `DiagnosisRule.id` identifies a rule or grouped provider;
+`DiagnosisResult.source` identifies the producing rule (`rule:...`), while
+`diagnosis_id` identifies its finding and links the repair preview. Existing
+Python source/finding IDs are retained; there is no duplicate rule-ID field or
+JSON schema change. Rules within a Pack should have distinct IDs.
+
+Repair planners belong to their Pack and describe actions, risk and expected
+changes in `RepairPlan` / `RepairAction`. They do not apply, execute, install,
+write or run shell commands. Verifiers belong to their Pack and only generate
+`VerificationStep` descriptions; Core decides whether and how any future repair
+or verification executor runs. Neither planning stage grants authority.
+
+Composition stays inside the Pack using ordinary objects and tuples of existing
+protocol implementations. Test-only `FakeLanguagePack` and `FakeToolchainPack`
+demonstrate rule/planner/verifier composition, multiple rules, and deterministic
+dispatch through the existing pipeline. They are not distributed as runtime
+Packs. No PackComponents container, manager, registry, loader or parallel
+runtime is needed for this boundary.
+
+Pack A must not import or manipulate Pack B's private implementation. Cooperation
+uses Core models: Evidence, DiagnosisResult, RepairPlan and VerificationStep.
+Any future cross-pack correlation belongs in Core; none is implemented here.
+Core still chooses Compatibility → Detect → Inspect → Core safety probe →
+Diagnose → Repair Plan → Verify → Report. A future Node or FastAPI Pack can
+implement the same contracts without adding a language-specific workflow;
+additional probe permissions and tool facts would still require Core policy.
+
+Pack inputs are data snapshots and captured outcomes, never a CommandExecutor,
+raw subprocess object, shell, mutable environment handle or arbitrary file writer.
+No network, installation, transaction, rollback or consent-bypass authority is
+granted. Tests verify supplied inputs and that fake planning changes neither
+project nor process environment. These in-process contracts cannot prevent
+hostile Python code from importing privileged APIs itself; they are not a sandbox.
+
+This step adds no dynamic discovery, importlib/entry-point loading, plugin folder,
+registry, marketplace, installation, enable/disable, pack dependency graph,
+version resolver, remote/signed manifest or sandbox process. Other real Packs,
+repair/verification execution, transactions, rollback, GUI and LLM remain future
+work. Workflow, CLI, JSON schema 0.2, runtime dependencies and package version
+are unchanged; no Pack metadata or new CLI switches are exposed.
 
 ## Product goal
 

@@ -1,4 +1,4 @@
-include LICENSE README.md README.zh-CN.md SECURITY.md CONTRIBUTING.md .gitignore
+include LICENSE README.md README.zh-CN.md SECURITY.md CONTRIBUTING.md CHANGELOG.md .gitignore
 graft docs
 recursive-include tests *.py
 recursive-include examples/fixtures *.py *.toml *.md

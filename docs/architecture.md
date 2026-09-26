@@ -3,7 +3,7 @@
 ## Status
 
 Historical v0.1 design baseline. Current implemented behavior, limitations, and
-v0.2.0-alpha preview additions are documented in README and json-schema.md.
+v0.2.0-alpha.2 preview additions are documented in README and json-schema.md.
 Some planned safeguards (such as general secret masking) are not implemented.
 
 ## Current alpha startup boundary

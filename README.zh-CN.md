@@ -7,7 +7,7 @@
 RepoRescue 帮助开发者理解 Python 项目为什么跑不起来：有哪些证据、根因链说明了什么，以及可以如何修复。
 它提供修复方案预览和验证计划，便于你在实际操作前审查改动，并明确修复后该如何检查。
 
-**v0.2.0-alpha · Windows First · Python only · READ ONLY by default · MIT**
+**v0.2.0-alpha.2 · Windows First · Python only · READ ONLY by default · MIT**
 
 默认采用安全策略。执行项目代码需要显式确认。
 RepoRescue 不会自动执行修复或安装软件包。
@@ -58,7 +58,7 @@ repo-rescue "C:\work\sample" --run-startup-probe
 如果未激活环境，可将 `repo-rescue` 替换为 `.\.venv\Scripts\repo-rescue.exe`。
 例如，未激活环境时可直接运行 `.\.venv\Scripts\repo-rescue.exe --version`。
 安装后也可以使用 `python -B -m agent_doctor.cli <project>`。
-软件包版本为 `0.2.0a1`，内部 Python 包名为 `agent_doctor`。
+软件包版本为 `0.2.0a2`，内部 Python 包名为 `agent_doctor`。
 项目曾用名为 Agent Doctor；临时兼容命令 `agent-doctor` 会调用同一个 CLI（命令行工具）。
 
 如果 GitHub Releases 提供 release wheel，可下载后安装本地文件：
@@ -183,7 +183,7 @@ repo-rescue "C:\work\sample" --output "C:\work\report.json"
 不指定 `--output` 就不会写报告文件。输出的父目录必须已经存在，已有报告不会被覆盖。
 写入失败时可能留下不完整的新文件。
 
-JSON schema **`0.2`** 与软件包版本 `0.2.0a1` 分开管理。报告包含项目和环境信息、结构化 Evidence、诊断、
+JSON schema **`0.2`** 与软件包版本 `0.2.0a2` 分开管理。报告包含项目和环境信息、结构化 Evidence、诊断、
 根因链、修复预览及验证计划。字段定义见 [JSON 契约](docs/json-schema.md)。
 `healthy` 状态只表示当前有限检查未发现问题，不是对项目整体健康的保证；仅有 INFO 不表示项目故障。
 

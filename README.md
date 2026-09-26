@@ -8,7 +8,7 @@ RepoRescue helps explain why a Python project may not run by connecting observed
 evidence to diagnoses and root cause chains. It produces repair previews and
 verification plans so developers can review what to change and how to check it.
 
-**v0.2.0-alpha · Windows First · Python only · READ ONLY by default · MIT**
+**v0.2.0-alpha.2 · Windows First · Python only · READ ONLY by default · MIT**
 
 Safe by default. Project code execution requires explicit opt-in.
 RepoRescue does not automatically apply repairs or install packages.
@@ -61,7 +61,7 @@ own file, network, or service side effects. The flag does not bypass safety chec
 Without activation, use `.\.venv\Scripts\repo-rescue.exe` instead of `repo-rescue`.
 For example, `.\.venv\Scripts\repo-rescue.exe --version` works without activation.
 After installation, `python -B -m agent_doctor.cli <project>` is another entry point.
-The package version is `0.2.0a1`. Internal Python package: `agent_doctor`.
+The package version is `0.2.0a2`. Internal Python package: `agent_doctor`.
 Former working name: Agent Doctor. The temporary `agent-doctor` compatibility
 alias delegates to the same CLI.
 
@@ -205,7 +205,7 @@ repo-rescue "C:\work\sample" --output "C:\work\report.json"
 Without `--output`, no report file is written. The parent directory must already
 exist; an existing report is never overwritten. A write failure may leave a partial new file.
 
-JSON schema **`0.2`** is separate from package version `0.2.0a1`. Reports include
+JSON schema **`0.2`** is separate from package version `0.2.0a2`. Reports include
 project/environment details, structured Evidence, diagnoses, root cause chains,
 repair previews, and verification plans. See the [JSON contract](docs/json-schema.md).
 The `healthy` status means only that current limited checks found no issue; it is

@@ -38,7 +38,7 @@ class MachineReportTests(unittest.TestCase):
     def test_schema_version_is_separate_from_package_version(self) -> None:
         report = self.report()
         self.assertEqual(report["schema_version"], "0.2")
-        self.assertEqual(report["tool"]["version"], "0.2.0a1")
+        self.assertEqual(report["tool"]["version"], "0.2.0a2")
 
     def test_no_error_or_warning_is_healthy_with_limited_scope(self) -> None:
         self.assertEqual(self.report()["status"], "healthy")
@@ -109,7 +109,7 @@ class MachineReportTests(unittest.TestCase):
         config = tomllib.loads(path.read_text(encoding="utf-8"))
         self.assertIn("version", config["project"]["dynamic"])
         self.assertEqual(config["tool"]["setuptools"]["dynamic"]["version"]["attr"], "agent_doctor.__version__")
-        self.assertEqual(agent_doctor.__version__, "0.2.0a1")
+        self.assertEqual(agent_doctor.__version__, "0.2.0a2")
         self.assertEqual(config["project"]["license"], "MIT")
         self.assertEqual(config["project"]["dependencies"], [])
 

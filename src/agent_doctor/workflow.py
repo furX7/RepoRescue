@@ -11,7 +11,9 @@ from .models import (
     ExecutionResult, ProjectInfo,
 )
 from .project import inspect_environment, scan_project
-from .python_plugin import detect_python_project, propose_diagnostic_commands
+from .python_plugin import (
+    detect_python_project, inspect_python_requirement, propose_diagnostic_commands,
+)
 from .report import build_json_report, render_terminal_report, write_json_report
 
 
@@ -45,9 +47,13 @@ def run_workflow(
         project = scan_project(project_path)
         detection = detect_python_project(project)
         inspected_environment = inspect_environment(project)
+        requirement_evidence = inspect_python_requirement(project, inspected_environment)
         proposals = propose_diagnostic_commands(project, inspected_environment)
         executions = tuple(execute_command(command, project.root_path) for command in proposals)
-        diagnostics, evidence = diagnose(project, detection, inspected_environment, executions)
+        diagnostics, evidence = diagnose(
+            project, detection, inspected_environment, executions,
+            python_requirement=requirement_evidence,
+        )
 
         # The current plugin proposes at most one operation: Python --version.
         # Derive presentation state from its actual result, never from log text.
@@ -59,7 +65,7 @@ def run_workflow(
                 environment = replace(environment, python_callable=False)
 
         report = build_json_report(project, detection, environment, diagnostics, evidence)
-        terminal = render_terminal_report(project, detection, environment, diagnostics)
+        terminal = render_terminal_report(project, detection, environment, diagnostics, evidence=evidence)
         saved_path = write_json_report(report, output_path)
     except (OSError, ValueError) as error:
         raise WorkflowError(str(error)) from error

@@ -4,8 +4,8 @@ Evidence-driven diagnosis and recovery planning for broken development projects.
 
 RepoRescue diagnoses why a development project may not run, explains the root
 cause chain, and generates safe repair and verification plans without modifying
-the project. Current evidence coverage is limited to shallow Python markers and
-the interpreter version probe.
+the project. Current evidence coverage is limited to shallow Python markers,
+the interpreter version probe, and the root pyproject.toml Python requirement.
 
 RepoRescue 是面向开发者和 AI 编程 Agent 的项目故障诊断工具，基于结构化证据进行诊断，并提供根因链、修复方案预览和验证计划。当前版本为 READ ONLY：不会自动修改项目、安装依赖或执行修复；目前为 Windows First、Python only。
 
@@ -13,7 +13,8 @@ RepoRescue 是面向开发者和 AI 编程 Agent 的项目故障诊断工具，�
 
 Source repository: [furX7/RepoRescue](https://github.com/furX7/RepoRescue).
 
-Current checks scan filenames and probe the interpreter running RepoRescue.
+Current checks scan filenames, inspect the root Python requirement, and probe
+the interpreter running RepoRescue.
 They do not execute project code. A clean report does not prove a project works.
 
 ## Why
@@ -101,6 +102,7 @@ cannot contain a Python project. No-problem reports explicitly mention limited c
 
 - Shallow Python marker detection (`likely` / `unknown`).
 - Current interpreter and dependency-manifest filename inspection.
+- Root pyproject.toml [project].requires-python compatibility checks.
 - Controlled current-interpreter `--version` execution.
 - A few structured, evidence-backed diagnosis rules.
 - Short evidence-referenced root cause chains.
@@ -120,7 +122,8 @@ cannot contain a Python project. No-problem reports explicitly mention limited c
 - Scans root and direct children, at most 1,000 entries. Skips `.git`, `.venv`, `venv`,
   `node_modules`, `__pycache__`, symlinks and junctions. Virtual-environment/cache roots
   are rejected. Weak filename markers can give false positives; deeper projects can
-  be missed. File contents and dependency conflicts are not analyzed.
+  be missed. Only the root pyproject.toml is read (up to 64 KiB) for
+  [project].requires-python; dependency contents/conflicts are not analyzed.
 - The interpreter is the one running RepoRescue, not an automatically selected
   project environment. Launch verification is only a version probe.
 - No arbitrary traceback, import-error, pytest, dependency, or application diagnosis.
@@ -135,6 +138,26 @@ cannot contain a Python project. No-problem reports explicitly mention limited c
   paths and captured output; review them before sharing.
 - No LLM, repair execution, verification execution, rollback, other languages,
   Markdown/HTML/database reports, MCP, GUI, Web UI, or IDE integration.
+
+## Python version requirement check
+
+Final release versions major.minor[.patch] support >=, >, <=, <, ==, != and comma
+combinations. Equality/exclusion also support a trailing .* after major.minor or
+major.minor.patch, such as ==3.12.* or >=3.11,!=3.12.*. Versions are compared
+numerically, padding missing patch components with zero.
+
+This is a conservative subset, not full PEP 440: no ~=, ===, epochs, prerelease,
+dev/post/local versions, environment markers, or ==3.*. Non-final current
+interpreters also remain unsupported. Unsupported syntax is recorded in evidence
+and shown as a tool limitation, never guessed as a mismatch. Missing declarations
+produce no version diagnosis. Read errors, oversized files, or invalid TOML
+produce metadata notices without version-fault conclusions.
+
+A supported mismatch produces an ERROR, evidence-linked chain, and a MEDIUM-risk
+preview to select or manually prepare a compatible environment. Environment
+selection/provisioning can affect dependencies; it is not guaranteed reversible.
+Two planned checks cover the selected interpreter's version and requirement
+comparison. Neither plan is executed; automatic environment changes never occur.
 
 ## Machine report contract
 

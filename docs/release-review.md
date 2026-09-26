@@ -2,6 +2,9 @@
 
 Review date: 2026-09-26. Windows First; Python 3.13.1 tested.
 
+Historical release-time snapshot. Subsequent source increments, including the
+Python requirement check, are documented in README and json-schema.md.
+
 ## Scope and metadata
 
 - Distribution: `repo-rescue`; version `0.2.0a1` from `agent_doctor.__version__`.

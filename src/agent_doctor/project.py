@@ -85,9 +85,15 @@ def inspect_environment(project: ProjectInfo) -> EnvironmentInfo:
     except OSError:
         available = False
 
+    version = ".".join(str(part) for part in sys.version_info[:3])
+    releaselevel = getattr(sys.version_info, "releaselevel", "final")
+    if releaselevel != "final":
+        suffix = {"alpha": "a", "beta": "b", "candidate": "rc"}.get(releaselevel, releaselevel)
+        version += suffix + str(getattr(sys.version_info, "serial", 0))
+
     return EnvironmentInfo(
         python_executable=executable,
-        python_version=".".join(str(part) for part in sys.version_info[:3]),
+        python_version=version,
         python_available=available,
         dependency_manifests=tuple(sorted({
             filename for filename in project.manifests

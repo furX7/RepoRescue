@@ -142,7 +142,8 @@ class MachineReportTests(unittest.TestCase):
         self.assertEqual(readme.count("Agent Doctor"), 1)
         self.assertIn("Internal Python package: `agent_doctor`", readme)
         self.assertIn("repo-rescue.exe --version", readme)
-        self.assertIn("repo_rescue-0.2.0a1-py3-none-any.whl", readme)
+        self.assertIn("GitHub Releases", readme)
+        self.assertIn("python -m pip install <path-to-downloaded-wheel>", readme)
         self.assertIn("https://github.com/furX7/RepoRescue", readme)
 
     def test_terminal_states_read_only_preview_and_limited_checks(self) -> None:

@@ -5,7 +5,7 @@ descriptions, not permission to execute. Output masking and path validation
 belong to the later collection and execution steps.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from math import isfinite
 from pathlib import Path
@@ -109,6 +109,7 @@ class Evidence:
     associated_id: str | None = None
     location: str | None = None
     masked: bool = False
+    metadata: dict[str, str | None] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

@@ -27,6 +27,7 @@ def diagnose(
     detection: DetectionResult,
     environment: EnvironmentInfo,
     executions: Sequence[ExecutionResult] = (),
+    *, python_requirement: Evidence | None = None,
 ) -> tuple[list[DiagnosisResult], list[Evidence]]:
     """Return (diagnoses, evidence), preserving positive and blocked outcomes too.
 
@@ -196,6 +197,52 @@ def diagnose(
                         f"probe:{index}:verify_version", f'"{execution.command.executable}" --version must complete without timeout and with exit code 0.',
                         "command",
                     ),),
+                ),
+            ))
+
+    if python_requirement is not None:
+        evidence.append(python_requirement)
+        if python_requirement.metadata.get("status") == "incompatible":
+            requirement = python_requirement.metadata["declared_python_requirement"]
+            current = python_requirement.metadata["current_python_version"]
+            reference = python_requirement.evidence_id
+            diagnosis_id = "python_version_incompatible"
+            diagnoses.append(DiagnosisResult(
+                problem="Current Python version does not satisfy the project's declared requirement.",
+                category="python_version", severity="ERROR", confidence=1.0,
+                source="rule:python_version_incompatible", evidence_refs=(reference,),
+                diagnosis_id=diagnosis_id,
+                recommended_actions=("Use an interpreter that satisfies the project's declared Python requirement.",),
+                root_cause_chain=(
+                    RootCauseStep(
+                        "version:requirement", f"Project requires {requirement}",
+                        "The root pyproject.toml declares this requires-python value.", (reference,),
+                    ),
+                    RootCauseStep(
+                        "version:current", f"Current interpreter: {current}",
+                        "This is the interpreter running RepoRescue, not an automatically selected project environment.", (reference,),
+                    ),
+                    RootCauseStep(
+                        "version:mismatch", "Interpreter does not satisfy the declared requirement",
+                        "Comparison of the supported final release constraints establishes a version mismatch.", (reference,),
+                    ),
+                ),
+                repair_plan=RepairPlan(
+                    id="preview:python_version_incompatible", diagnosis_id=diagnosis_id,
+                    summary=f"Use a Python interpreter that satisfies {requirement}.", risk="MEDIUM",
+                    actions=(RepairAction(
+                        "version:select_environment",
+                        "Select an existing compatible interpreter, or manually provision a compatible environment after review; run RepoRescue from that environment.",
+                        (), False, True,
+                    ),),
+                    verification_steps=(
+                        VerificationStep(
+                            "version:probe", "Run the selected interpreter's --version and require exit code 0.", "command",
+                        ),
+                        VerificationStep(
+                            "version:compare", f"Confirm that interpreter's detected version satisfies {requirement} by rerunning the requirement comparison.", "manual",
+                        ),
+                    ),
                 ),
             ))
 

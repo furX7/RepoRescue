@@ -97,6 +97,7 @@ def render_terminal_report(
     detection: DetectionResult,
     environment: EnvironmentInfo,
     diagnostics: Sequence[DiagnosisResult],
+    *, evidence: Sequence[Evidence] = (),
 ) -> str:
     """Render a concise summary without expanding evidence bodies."""
     if environment.python_available:
@@ -138,6 +139,9 @@ def render_terminal_report(
                 ))
     else:
         lines.append("- No problems detected by the current checks.")
+    for item in evidence:
+        if item.kind == "python_requirement" and item.metadata.get("status") not in ("compatible", "incompatible"):
+            lines.append("Python requirement check (tool limitation / metadata notice): " + item.summary)
     lines.append("READ ONLY: Repair preview only. Verification steps were not run.")
     lines.append("RepoRescue currently performs limited checks.")
     return "\n".join(lines)

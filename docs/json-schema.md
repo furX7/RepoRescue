@@ -38,8 +38,9 @@ Probable causes are possibilities, not established facts.
   These descriptive fields are not executable operations or permission grants.
 - VerificationStep: id, description, type (command/file_check/manual), status
   (always `not_run`). These are future checks, not the already completed version probe.
-- Risk: LOW/MEDIUM/HIGH. Current generated plans use LOW for manual review or
-  selection of an existing interpreter. No installation risk is implied.
+- Risk: LOW/MEDIUM/HIGH. Existing manual-review previews use LOW. Python version
+  mismatch previews use MEDIUM because selecting or manually provisioning an
+  environment can affect dependencies. No environment operation is executed.
 - Safety-policy notices have no repair plan (JSON null).
 
 Evidence IDs are local to a diagnostic run. Execution references correspond to the
@@ -52,3 +53,17 @@ and Enum values become strings, datetimes use ISO 8601, tuples become arrays, an
 None becomes null. Reports include local paths and captured output; generic secret
 masking is not implemented. Review before sharing. README's excerpt omits fields;
 the actual report contains the full serialized model.
+
+Python requirement Evidence uses kind python_requirement, source pyproject.toml,
+and optional metadata (an object, empty for previous evidence kinds):
+
+- declared_python_requirement: original requires-python string, or null when unavailable.
+- current_python_version: runtime version, preserving prerelease suffixes.
+- status: compatible / incompatible / unsupported_requirement /
+  unsupported_current_version / invalid_metadata / unreadable_metadata /
+  metadata_too_large.
+
+Only incompatible triggers the ERROR python_version rule. Unsupported/read/format
+statuses are evidence notices, not project failure diagnoses. An overall healthy
+status does not establish compatibility when this check is unsupported; consult
+the evidence. No field is removed and schema remains 0.2.

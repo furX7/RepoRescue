@@ -12,7 +12,8 @@ from .models import (
 )
 from .project import inspect_environment, scan_project
 from .python_plugin import (
-    detect_python_project, inspect_python_requirement, propose_diagnostic_commands,
+    detect_python_project, inspect_local_python_environment,
+    inspect_python_requirement, propose_diagnostic_commands,
 )
 from .report import build_json_report, render_terminal_report, write_json_report
 
@@ -47,12 +48,13 @@ def run_workflow(
         project = scan_project(project_path)
         detection = detect_python_project(project)
         inspected_environment = inspect_environment(project)
+        local_environment = inspect_local_python_environment(project, inspected_environment)
         requirement_evidence = inspect_python_requirement(project, inspected_environment)
         proposals = propose_diagnostic_commands(project, inspected_environment)
         executions = tuple(execute_command(command, project.root_path) for command in proposals)
         diagnostics, evidence = diagnose(
             project, detection, inspected_environment, executions,
-            python_requirement=requirement_evidence,
+            python_requirement=requirement_evidence, local_environment=local_environment,
         )
 
         # The current plugin proposes at most one operation: Python --version.

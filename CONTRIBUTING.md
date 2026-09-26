@@ -6,10 +6,11 @@ one focused change. From the source root:
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e .
-.\.venv\Scripts\python.exe -B -m unittest discover -s tests -v
+python -m unittest discover
 ```
 
-Without installation, use the source test command in README. Add meaningful tests,
+From the repository root, tests also run without installation or manual PYTHONPATH:
+`python -m unittest discover`. Add meaningful tests,
 run the full suite, and explain the change and limitations in your PR.
 Preserve read-only target handling; do not execute fixture project code. Discuss
 allowlist or safety-policy changes before implementation. Keep runtime dependencies

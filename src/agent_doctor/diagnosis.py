@@ -28,6 +28,7 @@ def diagnose(
     environment: EnvironmentInfo,
     executions: Sequence[ExecutionResult] = (),
     *, python_requirement: Evidence | None = None,
+    local_environment: Evidence | None = None,
 ) -> tuple[list[DiagnosisResult], list[Evidence]]:
     """Return (diagnoses, evidence), preserving positive and blocked outcomes too.
 
@@ -125,6 +126,49 @@ def diagnose(
                 ),
             ),
         ))
+
+    if local_environment is not None:
+        evidence.append(local_environment)
+        if local_environment.metadata.get("status") == "different":
+            reference = local_environment.evidence_id
+            name = local_environment.metadata["detected_local_environment"]
+            interpreter = local_environment.metadata["detected_interpreter_path"]
+            current = local_environment.metadata["current_python_executable"]
+            diagnosis_id = "project_interpreter_different"
+            diagnoses.append(DiagnosisResult(
+                problem="Current Python interpreter differs from the detected project environment.",
+                category="python_environment", severity="WARNING", confidence=0.9,
+                source="rule:project_interpreter_different", diagnosis_id=diagnosis_id,
+                evidence_refs=(reference,),
+                recommended_actions=("Confirm the intended environment before selecting the project-local interpreter.",),
+                root_cause_chain=(
+                    RootCauseStep(
+                        "local:detected", f"Project-local environment detected at {name}",
+                        f"An interpreter file was detected at {interpreter}; its usability and intended role are not established.", (reference,),
+                    ),
+                    RootCauseStep(
+                        "local:current", f"Current interpreter: {current}",
+                        "This is the interpreter running RepoRescue.", (reference,),
+                    ),
+                    RootCauseStep(
+                        "local:different", "Current interpreter differs from the project-local environment",
+                        "Normalized interpreter identities differ; this does not prove the project must use the detected environment.", (reference,),
+                    ),
+                ),
+                repair_plan=RepairPlan(
+                    id="preview:project_interpreter_different", diagnosis_id=diagnosis_id,
+                    summary="If this is the intended environment, select its interpreter and rerun RepoRescue and the project.", risk="LOW",
+                    actions=(RepairAction(
+                        "local:select", f"Manually select {interpreter} only after confirming it is intended for this project; rerun diagnosis under it.",
+                        (), True, True,
+                    ),),
+                    verification_steps=(
+                        VerificationStep("local:current", "Check sys.executable in the selected environment.", "manual"),
+                        VerificationStep("local:match", f"Confirm its normalized identity matches {interpreter}.", "manual"),
+                        VerificationStep("local:version", "Rerun the existing Python version probe and requires-python checks.", "command"),
+                    ),
+                ),
+            ))
 
     for index, execution in enumerate(executions):
         reference = f"execution:{index}"

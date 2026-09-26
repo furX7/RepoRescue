@@ -67,3 +67,17 @@ Only incompatible triggers the ERROR python_version rule. Unsupported/read/forma
 statuses are evidence notices, not project failure diagnoses. An overall healthy
 status does not establish compatibility when this check is unsupported; consult
 the evidence. No field is removed and schema remains 0.2.
+
+Project-local interpreter Evidence uses kind local_python_environment and source
+python_plugin. Metadata contains:
+
+- current_python_executable: current executable path or null.
+- detected_local_environment: .venv/venv, an array for multiple candidates, or null.
+- detected_interpreter_path: candidate path, an array for multiple candidates, or null.
+- status: matched / different / ambiguous / none. An unavailable status records
+  filesystem/normalization failures or an unknown current executable.
+
+Only different produces a WARNING python_environment diagnosis, with its own
+evidence-linked chain and LOW preview. Ambiguous/unavailable are limitation notices;
+matched/none are positive or neutral evidence. Existing Python version mismatch
+diagnoses remain independent. Schema remains 0.2.

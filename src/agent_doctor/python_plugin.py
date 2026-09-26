@@ -1,5 +1,6 @@
 """Python filename detection, bounded requirement inspection, and proposals."""
 
+import os
 import re
 import tomllib
 from pathlib import PurePosixPath
@@ -147,3 +148,54 @@ def inspect_python_requirement(project: ProjectInfo, environment: EnvironmentInf
         "unsupported_current_version": "Current Python version syntax is not supported by the current v0.2-alpha parser.",
     }
     return observation(status, summaries[status], requirement)
+
+
+def inspect_local_python_environment(project: ProjectInfo, environment: EnvironmentInfo) -> Evidence:
+    """Probe four fixed root-local interpreter files; never execute or read them.
+
+    Preserve the interpreter's directory identity when resolving symlinks: a
+    POSIX venv may link to the base executable without sharing its environment.
+    Parent-directory aliases resolve normally; Windows comparisons ignore case.
+    """
+    current = environment.python_executable
+    candidates = []
+
+    def observation(status: str, summary: str) -> Evidence:
+        names = tuple(name for name, _ in candidates)
+        paths = tuple(str(path) for _, path in candidates)
+        return Evidence(
+            evidence_id="environment:project_local", kind="local_python_environment",
+            source="python_plugin", location=str(project.root_path), summary=summary,
+            metadata={
+                "current_python_executable": str(current) if current is not None else None,
+                "detected_local_environment": names[0] if len(names) == 1 else names or None,
+                "detected_interpreter_path": paths[0] if len(paths) == 1 else paths or None,
+                "status": status,
+            },
+        )
+
+    try:
+        for name in (".venv", "venv"):
+            for relative in ("Scripts/python.exe", "bin/python"):
+                path = project.root_path / name / relative
+                if path.is_file():
+                    candidates.append((name, path))
+        if not candidates:
+            return observation("none", "No interpreter file was detected in the supported local environment locations.")
+        if len(candidates) > 1:
+            return observation("ambiguous", "Multiple local Python environments or interpreter candidates were detected; no environment was selected.")
+        if current is None:
+            return observation("unavailable", "Local interpreter comparison is unavailable: the current executable path is unknown.")
+
+        def identity(path):
+            return (
+                os.path.normcase(str(path.parent.resolve())),
+                os.path.normcase(str(path.resolve())),
+            )
+
+        matched = identity(current) == identity(candidates[0][1])
+    except (OSError, RuntimeError):
+        return observation("unavailable", "Local interpreter inspection or path comparison could not be completed.")
+    if matched:
+        return observation("matched", "The current interpreter matches the detected project-local environment.")
+    return observation("different", "A local virtual environment exists, but RepoRescue is running under a different Python interpreter.")

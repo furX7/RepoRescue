@@ -5,7 +5,8 @@ Evidence-driven diagnosis and recovery planning for broken development projects.
 RepoRescue diagnoses why a development project may not run, explains the root
 cause chain, and generates safe repair and verification plans without modifying
 the project. Current evidence coverage is limited to shallow Python markers,
-the interpreter version probe, and the root pyproject.toml Python requirement.
+the interpreter version probe, the root pyproject.toml Python requirement, and
+fixed project-local interpreter paths.
 
 RepoRescue 是面向开发者和 AI 编程 Agent 的项目故障诊断工具，基于结构化证据进行诊断，并提供根因链、修复方案预览和验证计划。当前版本为 READ ONLY：不会自动修改项目、安装依赖或执行修复；目前为 Windows First、Python only。
 
@@ -103,6 +104,7 @@ cannot contain a Python project. No-problem reports explicitly mention limited c
 - Shallow Python marker detection (`likely` / `unknown`).
 - Current interpreter and dependency-manifest filename inspection.
 - Root pyproject.toml [project].requires-python compatibility checks.
+- Project-local .venv/venv interpreter identity checks (file presence only).
 - Controlled current-interpreter `--version` execution.
 - A few structured, evidence-backed diagnosis rules.
 - Short evidence-referenced root cause chains.
@@ -158,6 +160,29 @@ preview to select or manually prepare a compatible environment. Environment
 selection/provisioning can affect dependencies; it is not guaranteed reversible.
 Two planned checks cover the selected interpreter's version and requirement
 comparison. Neither plan is executed; automatic environment changes never occur.
+
+## Project-local interpreter check
+
+Only root .venv and venv candidates are probed: Scripts/python.exe and bin/python.
+An empty directory is not a candidate. These interpreter files are never read or
+executed, and their presence does not prove they work or are intended for the project.
+Recognizing POSIX filenames does not change the Windows First platform scope.
+
+One candidate with a different current interpreter produces a WARNING, not proof
+of project failure. Paths are made absolute, parent aliases and executable links
+are resolved, and Windows comparisons ignore case. Interpreter directory identity
+is retained: a POSIX venv link to base Python is still a different environment
+from running that base interpreter outside the venv.
+
+Multiple candidate files are ambiguous; no interpreter is chosen or wrong-interpreter
+diagnosis generated. Matching or absent candidates produce evidence only. Filesystem
+or normalization errors leave comparison unavailable and produce a limitation notice.
+No conda, pyenv, Poetry/uv cache, nested or custom environment paths are inspected.
+
+The LOW-risk preview asks the user to confirm intent, manually select the interpreter,
+and rerun diagnosis. Planned verification checks sys.executable, normalized identity,
+and existing Python version checks. It does not activate an environment, start a
+shell, change PATH, install dependencies, or restart RepoRescue.
 
 ## Machine report contract
 
@@ -231,9 +256,10 @@ Fork, create a branch, make a small focused change with tests, and submit a PR.
 See [CONTRIBUTING](CONTRIBUTING.md) and [SECURITY](SECURITY.md).
 
 ```powershell
-python -B -c "import sys, unittest; sys.path.insert(0, 'src'); suite = unittest.defaultTestLoader.discover('tests'); result = unittest.TextTestRunner(verbosity=2).run(suite); sys.exit(not result.wasSuccessful())"
+python -m unittest discover
 ```
 
+Run from the repository root; no installation or manual PYTHONPATH is required.
 Integration tests use isolated fixtures and never execute their source code.
 
 ## License

@@ -142,6 +142,13 @@ def render_terminal_report(
     for item in evidence:
         if item.kind == "python_requirement" and item.metadata.get("status") not in ("compatible", "incompatible"):
             lines.append("Python requirement check (tool limitation / metadata notice): " + item.summary)
+        if item.kind == "local_python_environment":
+            status = item.metadata.get("status")
+            if status == "different":
+                lines.append(f"Detected environment: {item.metadata['detected_local_environment']}")
+                lines.append(f"Detected interpreter: {item.metadata['detected_interpreter_path']}")
+            elif status in ("ambiguous", "unavailable"):
+                lines.append("Local environment check (limitation): " + item.summary)
     lines.append("READ ONLY: Repair preview only. Verification steps were not run.")
     lines.append("RepoRescue currently performs limited checks.")
     return "\n".join(lines)

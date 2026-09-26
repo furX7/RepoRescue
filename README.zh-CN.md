@@ -222,6 +222,8 @@ CLI 协调扫描与检测、检查与命令提议、受控执行、基于证据�
 [官方示例 Pack](examples/extensions/example_language_pack.py)。当前运行时仅使用 built-in Pack，
 宿主可显式发现已安装 Pack 的 entry points；CLI 尚未自动启用 discovery，
 没有 marketplace 或 installer。
+加载 entry point 与调用 factory 会执行第三方 Python 代码，只应加载可信来源的 Pack。
+SDK 验证不是 sandbox，也不授予 Core 执行权限。
 
 [GIF 生成脚本](tools/generate_demo_gif.py) 使用已安装的项目 CLI，并将 Pillow 作为本地文档工具。
 Pillow 不是运行时依赖；缺少 Pillow 时只显示明确提示，不会自动安装。

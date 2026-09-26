@@ -35,6 +35,8 @@ class PackRegistry:
 
     def register(self, pack: Extension) -> None:
         """Validate declarations only, then add once; never call Pack stages."""
+        if isinstance(pack, type):
+            raise ValueError("Register a Pack instance, not a class")
         metadata = getattr(pack, "metadata", None)
         if not isinstance(metadata, ExtensionMetadata):
             raise ValueError("Pack metadata must be an ExtensionMetadata instance")

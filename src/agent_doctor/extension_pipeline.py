@@ -106,7 +106,11 @@ def run_extension_stage(
                 status = "unavailable"
             elif isinstance(error, ExtensionIncompatible):
                 status = "incompatible"
-            failure = ExtensionFailureInfo(run.extension.metadata.id, stage, status, str(error))
+            # Third-party exception text may contain paths or secrets.
+            failure = ExtensionFailureInfo(
+                run.extension.metadata.id, stage, status,
+                f"Extension stage reported {status}.",
+            )
             result = replace(run, failures=(*run.failures, failure))
         results.append(result)
     return tuple(results)

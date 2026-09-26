@@ -16,6 +16,13 @@ The interpreter must be trusted. There is no generic secret masking, hard captur
 memory bound, or process-tree isolation. Review report paths and captured output
 before sharing.
 
+Installed third-party Packs are executable Python code: explicitly discovering
+their entry points imports code and invokes factories. Only install/load Packs
+from trusted sources. Metadata and protocol validation are not sandboxing.
+The public SDK does not expose Core executors, shell helpers or file writers,
+but third-party code can import Python libraries and cause its own side effects.
+Default CLI/workflow do not discover or load third-party Packs.
+
 Use a private GitHub security advisory when the repository offers that channel.
 Otherwise arrange a private reporting channel with the maintainers before sharing
 sensitive details. Never post API keys, passwords, tokens, or private user data in

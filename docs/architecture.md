@@ -2,8 +2,10 @@
 
 ## Status
 
-Historical v0.1 design baseline. Current implemented behavior, limitations, and
-v0.2.0-alpha.2 preview additions are documented in README and json-schema.md.
+Historical v0.1 design baseline, with implemented v0.2 startup and v0.3 extension
+sections below. Current v0.3 includes the public SDK, explicit registry and
+controlled installed-Pack discovery API. CLI/workflow still use Python only,
+without automatic third-party loading. Package version is 0.2.0a2; JSON is 0.2.
 Some planned safeguards (such as general secret masking) are not implemented.
 
 ## Current alpha startup boundary
@@ -19,8 +21,8 @@ root main.py argument, cwd equal to root, readability, and resolved path contain
 Only CAUTION is accepted; DANGEROUS and arbitrary argv remain prohibited. The existing
 version-only executor does not gain an approval bypass or general command support.
 
-The CLI has no confirmation interaction and only displays the proposal. A library
-caller must obtain informed confirmation for the exact proposal before explicitly
+The CLI opts in through --run-startup-probe; otherwise it displays the proposal
+without running it. A library caller must obtain informed confirmation before explicitly
 setting confirm_startup=True. The workflow coordinates; diagnosis consumes startup
 Evidence and reuses independent import rules. Reports only present outcomes.
 
@@ -38,13 +40,13 @@ Absent main.py is a tool coverage limitation; unconfirmed proposals are not diag
 Nonzero startup exit produces an ERROR symptom with its own evidence chain and LOW
 repair preview. python_import, python_environment, and python_version stay independent.
 
-This document records the approved v0.1 architecture. It defines design only; implementation is gated on the user's explicit `START IMPLEMENTATION` instruction.
+The sections from Product goal onward record the historical v0.1 design.
+The extension sections below describe the implemented v0.3 foundation.
 
 ## Extension Architecture — v0.3 foundation
 
 This section records the implemented first extraction step of v0.3, following
-the [Notion roadmap](https://app.notion.com/p/3e71d223bf6381a8bd86ca012503c8df),
-sections 9 and 11. Built-in Extension Pipeline records step two, and Pack Architecture
+Small Core, Large Ecosystem. Built-in Extension Pipeline records step two, and Pack Architecture
 records step three;
 sections from Product goal onward retain the historical v0.1 design.
 
@@ -131,8 +133,8 @@ The facade was initially exercised only in tests; step two connects it to workfl
 and filesystem policy, consent, timeout and output limits remain with Core. No
 extension may bypass these controls, directly execute arbitrary shell, write project
 files, alter PATH, install packages, or bypass future transaction/rollback controls.
-Python-native contracts cannot sandbox hostile in-process code. Third-party execution
-must wait for an appropriate future Core boundary; no sandbox is claimed here.
+Python-native contracts cannot sandbox hostile in-process code. Explicit discovery
+now loads trusted installed Python code, as described below; no sandbox is claimed.
 
 `ExtensionUnavailable`, `ExtensionIncompatible`, and `ExtensionFailure` carry the
 extension ID and a message. They respectively mean missing prerequisites/observations,
@@ -145,11 +147,11 @@ projects or receiving an executor. It is not in the runtime package or CLI.
 
 Future Node / Java / C++ packs can implement these same stage contracts and return
 Core Evidence, DiagnosisResult, RepairPlan and VerificationStep objects, without adding
-a language-specific orchestration algorithm. Step two adds static stage dispatch;
-packs still cannot be discovered or loaded dynamically. Dynamic loading,
-entry points, plugin folders, registry, marketplace, installation,
-third-party isolation runtime, other-language support, repair/verification execution, rollback, GUI
-and LLM integration are not implemented by this step. README Roadmap remains planned.
+a language-specific orchestration algorithm. The first extraction step did not
+include registry/discovery; their implemented boundaries are described below.
+Plugin folders, marketplace, installation, third-party isolation, other-language
+support, repair/verification execution, rollback, GUI and LLM remain future work.
+README Roadmap remains planned.
 
 ## Built-in Extension Pipeline
 
@@ -160,8 +162,9 @@ Core owns orchestration. Built-in extensions are statically configured in
 BUILTIN_EXTENSIONS = (PythonCoreExtension(),)
 ```
 
-Python is currently the only built-in extension. No dynamic discovery, entry
-points, plugin folders, registry service or third-party loading is implemented.
+Python is currently the only built-in extension. Default workflow/CLI do not
+call installed-Pack discovery; hosts use the explicit SDK API described below.
+Plugin folders and a registry service are not implemented.
 
 ```text
 Core workflow
@@ -368,7 +371,8 @@ entry-point discovery is now an explicit SDK API; automatic CLI discovery remain
 
 `src/agent_doctor/pack_registry.py` defines the public SDK's `PackRegistry`:
 register, get, read-only packs and tuple snapshot, plus a default factory.
-It saves explicitly supplied SDK Pack objects in registration order. Structural
+It saves explicitly supplied SDK Pack instances in registration order, rejecting
+classes even when their class attributes resemble valid declarations. Structural
 validation and duplicate rejection happen before insertion; ValueError leaves
 membership unchanged and identifies the invalid declaration or duplicate ID.
 No Pack business stage is called during registration.
@@ -384,7 +388,8 @@ normal workflow and CLI still receive Python only. Workflow is unchanged.
 Registry saves valid declarations; pipeline handles runtime compatibility and
 stage dispatch; Core owns authority, policy and orchestration. Structurally valid
 but incompatible API/platform/tool declarations can register and are skipped by
-pipeline. There is no global mutable registry, discovery, string-based import,
+pipeline. Registry itself performs no discovery. There is no global mutable
+registry or caller-supplied string-based import,
 disk/package scanning, persistence, installer, priorities or plugin lifecycle.
 Registry exposes no executor, shell, writer, environment handle or network client.
 
@@ -425,6 +430,11 @@ prevent that code's own side effects. Discovery itself does not invoke Pack
 business stages or grant execution handles. SDK import does not query metadata;
 default registry/workflow/CLI do not call discovery. Python remains the only
 default Pack, and the official example has no installed distribution entry point.
+
+Declared pipeline errors retain Pack/stage/status identity with fixed messages,
+without copying raw exception text into failure results. Completed earlier
+stages survive; a failed stage publishes no partial batch. Ordinary unexpected
+stage exceptions and process-control signals still propagate to the caller.
 
 ## Product goal
 

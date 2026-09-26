@@ -111,7 +111,7 @@ def discover_installed_packs(registry: PackRegistry) -> DiscoveryResult:
         duplicate = False
         try:
             declaration = getattr(pack, "metadata", None)
-            duplicate = (isinstance(declaration, ExtensionMetadata)
+            duplicate = (not isinstance(pack, type) and isinstance(declaration, ExtensionMetadata)
                          and isinstance(declaration.id, str) and registry.get(declaration.id) is not None)
             registry.register(pack)
         except Exception as error:

@@ -102,7 +102,8 @@ ValueError for invalid SDK metadata, malformed IDs/declarations, missing callabl
 capabilities or duplicate IDs. A duplicate error includes `Duplicate pack ID`
 and the ID. Failure neither reserves the ID nor replaces an existing Pack.
 Registration reuses metadata/capability validation and checks tuple/string shape
-for platform and tool declarations. It does not execute Pack stages.
+for platform and tool declarations. Supply a Pack instance, never a class
+returned by a factory. It does not execute Pack stages.
 
 `get(pack_id)` returns the supplied object or None. `packs` is a read-only tuple
 property, and `snapshot()` captures tuple membership/order. Later registrations
@@ -247,7 +248,9 @@ Authors may raise `ExtensionUnavailable(pack_id, message)` for missing
 observations/prerequisites, `ExtensionIncompatible` for unsupported API/platform,
 or `ExtensionFailure` for a failed stage. These are existing contract outcomes
 that Core isolates per Pack, preserving earlier completed stages and skipping
-later stages. Unexpected exceptions remain visible; do not catch process-control
+later stages. Pipeline failure results retain Pack ID, stage and category with
+a fixed message; raw extension exception text is not copied into those results.
+Unexpected exceptions remain visible; do not catch process-control
 signals or disguise programming errors as successful findings.
 
 These are in-process Python contracts, not a security sandbox: they cannot stop

@@ -257,7 +257,7 @@ class PipelineTests(unittest.TestCase):
                     runs = self.complete(broken, good)
                     failure = merge_results(runs).failures[0]
                     self.assertEqual((failure.extension_id, failure.stage, failure.status, failure.message),
-                                     ("broken", stage, status, "local failure"))
+                                     ("broken", stage, status, f"Extension stage reported {status}."))
                     self.assertEqual(runs[1].failures, ())
                     self.assertEqual(runs[1].diagnoses[0].source, "good")
                     self.assertEqual(good.trace[-1], ("good", Capability.VERIFY))

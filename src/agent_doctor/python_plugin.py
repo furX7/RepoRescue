@@ -155,7 +155,8 @@ def inspect_local_python_environment(project: ProjectInfo, environment: Environm
 
     Preserve the interpreter's directory identity when resolving symlinks: a
     POSIX venv may link to the base executable without sharing its environment.
-    Parent-directory aliases resolve normally; Windows comparisons ignore case.
+    Existing file aliases share physical identity and are deduplicated before
+    choosing a status. Keep the original candidate paths for report presentation.
     """
     current = environment.python_executable
     candidates = []
@@ -178,7 +179,9 @@ def inspect_local_python_environment(project: ProjectInfo, environment: Environm
         for name in (".venv", "venv"):
             for relative in ("Scripts/python.exe", "bin/python"):
                 path = project.root_path / name / relative
-                if path.is_file():
+                if path.is_file() and not any(
+                    _same_interpreter_path(path, previous) for _, previous in candidates
+                ):
                     candidates.append((name, path))
         if not candidates:
             return observation("none", "No interpreter file was detected in the supported local environment locations.")
@@ -187,15 +190,31 @@ def inspect_local_python_environment(project: ProjectInfo, environment: Environm
         if current is None:
             return observation("unavailable", "Local interpreter comparison is unavailable: the current executable path is unknown.")
 
-        def identity(path):
-            return (
-                os.path.normcase(str(path.parent.resolve())),
-                os.path.normcase(str(path.resolve())),
-            )
-
-        matched = identity(current) == identity(candidates[0][1])
+        matched = _same_interpreter_path(current, candidates[0][1])
     except (OSError, RuntimeError):
         return observation("unavailable", "Local interpreter inspection or path comparison could not be completed.")
     if matched:
         return observation("matched", "The current interpreter matches the detected project-local environment.")
     return observation("different", "A local virtual environment exists, but RepoRescue is running under a different Python interpreter.")
+
+
+def _same_interpreter_path(left, right) -> bool:
+    """Compare physical files, preserving environment identity for file symlinks.
+
+    A venv's symlink to base Python is not the base environment. Directory aliases
+    (including Windows 8.3 names) still identify the same environment. If stat is
+    unavailable, retain the conservative normalized directory/file comparison.
+    """
+    try:
+        if not os.path.samefile(left, right):
+            return False
+        if left.is_symlink() or right.is_symlink():
+            return os.path.samefile(left.parent, right.parent)
+        return True
+    except OSError:
+        def normalized(path):
+            return (
+                os.path.normcase(str(path.parent.resolve())),
+                os.path.normcase(str(path.resolve())),
+            )
+        return normalized(left) == normalized(right)

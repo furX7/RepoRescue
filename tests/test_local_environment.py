@@ -25,6 +25,7 @@ class LocalEnvironmentTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         (self.root / "main.py").write_text("raise RuntimeError('do not execute')", encoding="utf-8")
         self.project = scan_project(self.root)
+        self.root = self.project.root_path
         self.environment = EnvironmentInfo(Path(sys.executable), "3.13.1", True, ())
 
     def candidate(self, name=".venv", layout="Scripts/python.exe"):
@@ -98,6 +99,65 @@ class LocalEnvironmentTests(unittest.TestCase):
         with chdir(self.root):
             item = self.inspect(Path(".venv/Scripts/python.exe"))
         self.assertEqual(item.metadata["status"], "matched")
+
+    def test_long_and_short_file_aliases_match_by_physical_identity(self):
+        candidate = self.candidate()
+        alias = self.root / "SYNTH~1/python.exe"
+        with patch("agent_doctor.python_plugin.os.path.samefile", return_value=True) as samefile:
+            item = self.inspect(alias)
+        self.assertEqual(item.metadata["status"], "matched")
+        self.assertEqual(item.metadata["current_python_executable"], str(alias))
+        self.assertEqual(item.metadata["detected_interpreter_path"],
+                         str(self.project.root_path / ".venv/Scripts/python.exe"))
+        samefile.assert_called_with(alias, self.project.root_path / ".venv/Scripts/python.exe")
+
+    def test_alias_candidates_are_deduplicated_before_current_matching(self):
+        first, second = self.candidate(), self.candidate("venv")
+        alias = self.root / "SYNTH~1/python.exe"
+        equivalent = {first, second, alias}
+        def samefile(left, right):
+            return left in equivalent and right in equivalent
+        with patch("agent_doctor.python_plugin.os.path.samefile", side_effect=samefile):
+            item = self.inspect(alias)
+        self.assertEqual(item.metadata["status"], "matched")
+        self.assertEqual(item.metadata["detected_local_environment"], ".venv")
+        self.assertEqual(item.metadata["detected_interpreter_path"], str(first))
+
+    def test_alias_candidates_with_different_current_are_not_ambiguous(self):
+        first, second = self.candidate(), self.candidate("venv")
+        equivalent = {first, second}
+        with patch("agent_doctor.python_plugin.os.path.samefile",
+                   side_effect=lambda left, right: left in equivalent and right in equivalent):
+            item = self.inspect()
+        self.assertEqual(item.metadata["status"], "different")
+        self.assertEqual(item.metadata["detected_local_environment"], ".venv")
+
+    def test_samefile_error_uses_conservative_normalized_fallback(self):
+        candidate = self.candidate()
+        for current, expected in ((candidate, "matched"), (self.environment.python_executable, "different")):
+            with self.subTest(expected=expected), \
+                    patch("agent_doctor.python_plugin.os.path.samefile", side_effect=PermissionError()):
+                self.assertEqual(self.inspect(current).metadata["status"], expected)
+
+    def test_samefile_failure_does_not_merge_distinct_candidates(self):
+        self.candidate()
+        self.candidate("venv")
+        with patch("agent_doctor.python_plugin.os.path.samefile", side_effect=OSError()):
+            self.assertEqual(self.inspect().metadata["status"], "ambiguous")
+
+    def test_unresolvable_identity_is_unavailable(self):
+        self.candidate()
+        with patch("agent_doctor.python_plugin.os.path.samefile", side_effect=OSError()), \
+                patch.object(Path, "resolve", side_effect=RuntimeError("synthetic loop")):
+            self.assertEqual(self.inspect().metadata["status"], "unavailable")
+
+    def test_shared_base_binary_symlinks_keep_environment_identity(self):
+        first, second = self.candidate(), self.candidate("venv")
+        def samefile(left, right):
+            return left == right or {left, right} == {first, second}
+        with patch("agent_doctor.python_plugin.os.path.samefile", side_effect=samefile), \
+                patch.object(Path, "is_symlink", return_value=True):
+            self.assertEqual(self.inspect(first).metadata["status"], "ambiguous")
 
     @unittest.skipUnless(os.name == "nt", "Windows path case semantics")
     def test_windows_case_is_ignored(self):

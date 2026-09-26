@@ -7,6 +7,8 @@ cause chain, and generates safe repair and verification plans without modifying
 the project. Current evidence coverage is limited to shallow Python markers and
 the interpreter version probe.
 
+RepoRescue 是面向开发者和 AI 编程 Agent 的项目故障诊断工具，基于结构化证据进行诊断，并提供根因链、修复方案预览和验证计划。当前版本为 READ ONLY：不会自动修改项目、安装依赖或执行修复；目前为 Windows First、Python only。
+
 **v0.2.0-alpha · Windows First · Python only · READ ONLY · MIT**
 
 Source repository: [furX7/RepoRescue](https://github.com/furX7/RepoRescue).

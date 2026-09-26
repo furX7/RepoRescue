@@ -2,17 +2,9 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-面向故障开发项目的证据驱动诊断与恢复规划工具。
-
-RepoRescue 帮助开发者理解 Python 项目为什么跑不起来：有哪些证据、根因链说明了什么，以及可以如何修复。
-它提供修复方案预览和验证计划，便于你在实际操作前审查改动，并明确修复后该如何检查。
+用证据解释 Python 项目为什么跑不起来，并生成可供审查的修复预览和验证计划。
 
 **v0.3.0-alpha.1 · Windows First · Python only · READ ONLY by default · MIT**
-
-详见 [v0.3 alpha 发布说明](docs/releases/v0.3.0-alpha.1.md)。
-
-默认采用安全策略。执行项目代码需要显式确认。
-RepoRescue 不会自动执行修复或安装软件包。
 
 ## 演示
 
@@ -20,15 +12,15 @@ RepoRescue 不会自动执行修复或安装软件包。
 
 使用已安装的 CLI，诊断一个结果确定的模块导入失败样例。
 
-## 为什么是 RepoRescue
+## RepoRescue 是什么
 
-Traceback、运行时错误和环境错误提供了有用的故障线索。
-RepoRescue 将当前能够识别的证据整理成便于审查的流程：
+RepoRescue 把版本、解释器和启动错误等线索整理成一条可审查的流程：
 
-证据（Evidence）→ 诊断 → 根因链 → 修复预览 → 验证计划。
+证据 → 诊断 → 根因链 → 修复预览 → 验证计划。
 
-结论以实际观察到的证据为限。根因链可能解释了故障的后果，却尚未确定更深层的原因；
-报告没有发现问题，也不代表整个项目可以正常运行。
+它帮助你判断下一步该检查什么、建议的修复涉及什么，以及之后如何验证。
+Traceback 给出症状，RepoRescue 将受支持的症状与实际捕获的证据关联起来；
+证据不足时不会把猜测写成确定根因。没有发现问题，也不代表整个项目可以正常运行。
 
 ## 快速开始（Windows）
 
@@ -75,7 +67,31 @@ python -m pip install <path-to-downloaded-wheel>
 - `1`：诊断完成，发现 ERROR/CRITICAL。
 - `2`：参数或输入无效、报告写入失败，或工具自身出错。
 
-## 快速演示
+## 当前诊断能力
+
+| 观察到的情况 | RepoRescue 的处理 |
+| --- | --- |
+| `requires-python` 不匹配 | 在支持的约束范围内报告 ERROR |
+| 项目本地解释器不匹配 | 报告 WARNING，不能据此证明项目故障 |
+| `ModuleNotFoundError` | 识别明确的缺失模块异常行 |
+| `ImportError` 符号导入失败 | 有限支持明确的 cannot-import-name 异常行 |
+| 启动非零退出 | 报告 ERROR 症状，具体导入诊断保持独立 |
+| 启动超时 | 记录 INFO 观察，不能据此判断卡死或已就绪 |
+
+项目检测只扫描根目录和直接子目录，最多 1,000 个条目；`likely` / `unknown` 表示文件名证据，
+不表示应用已经可以启动。工具检查当前解释器，并可能受控执行 `--version`。
+对于本地 `.venv` / `venv`，只查找 `Scripts/python.exe` 或 `bin/python` 并比较文件身份，
+不会运行候选解释器；存在真实歧义时不会自动选择。
+
+根目录 `pyproject.toml` 的版本检查支持 `>=`、`>`、`<=`、`<`、`==`、`!=`、逗号组合及
+`major.minor[.patch]`；相等和排除约束还支持 `.*`。这不是完整 PEP 440：
+`~=`、预发布版本等不支持的约束只会产生能力限制说明，不猜测不兼容。
+导入名不会被映射成 PyPI 分发包名，也不据此断言缺少某个软件包。
+
+GitHub Actions 已验证 Windows + Python 3.12 / 3.13，本地验证使用 Python 3.13.1。
+Linux/macOS 尚未单独验证；runtime dependencies 为 `[]`。
+
+## 示例与输出流程
 
 安装并激活环境后，从仓库根目录运行：
 
@@ -107,59 +123,7 @@ No repair actions were executed.
 通常几秒内结束，不需要额外安装软件包或交互确认，也不会生成 `__pycache__`。
 退出码 1 是预期结果。不加该参数时，启动探测仍为 `requires_confirmation`，不会执行项目代码。
 
-## 当前能力
-
-- 浅层 Python 项目检测：扫描根目录和直接子目录，最多 1,000 个条目。
-  `likely` / `unknown` 表示文件名证据，不表示应用已经能够正常启动。
-- 检查当前解释器，并受控执行 `--version`。
-- 根据根目录 `pyproject.toml` 的 `[project].requires-python` 诊断 Python 版本兼容性。
-  支持正式版本比较的保守子集，而非完整 PEP 440：`>=`、`>`、`<=`、`<`、`==`、`!=`、逗号组合及
-  `major.minor[.patch]`，相等或排除约束还支持末尾 `.*`。
-  `~=`、预发布版本等不支持的约束会作为工具限制说明，不猜测版本不兼容。
-- 检测项目本地 `.venv` / `venv` 并比较解释器身份：仅检查 `Scripts/python.exe` 和 `bin/python` 是否存在，
-  不运行候选解释器。当前解释器与候选不同会产生 WARNING；多个候选存在歧义时不会自动选择。
-- 从已捕获输出识别明确的 `ModuleNotFoundError: No module named ...`，以及有限形式的
-  `ImportError: cannot import name ... from ...`。不会把导入名映射为 PyPI 分发包名，也不据此断言缺少软件包。
-- 显式确认后受控探测根目录 `main.py`，诊断非零退出、记录超时观察，并限制 stdout/stderr 的捕获大小。
-- 与证据关联的根因链、修复方案预览，以及计划中的验证步骤。
-- 便于人阅读的终端报告和简化的已知路径展示；机器可读的 JSON 仍保留诊断与自动化需要的真实路径。
-
-当前范围为 Windows First、Python only。GitHub Actions 已验证发布前基线在 Windows + Python 3.12
-及 Windows + Python 3.13 下通过；本地验证使用 Python 3.13.1。Linux/macOS 尚未在此 alpha 阶段单独验证。
-
-## 当前支持的诊断
-
-| 问题或操作 | 当前支持情况 |
-| --- | --- |
-| Python 版本不匹配 | 支持已说明的版本约束子集 |
-| 项目本地解释器不匹配 | 支持，等级为 WARNING；不能证明项目有故障 |
-| `ModuleNotFoundError` | 支持明确的缺失模块异常行 |
-| `ImportError` 符号导入失败 | 有限支持，识别明确的 cannot-import-name 异常行 |
-| 启动非零退出 | 支持，作为 ERROR 症状；具体导入诊断保持独立 |
-| 启动超时 | 支持，作为 INFO 观察；不能证明卡死或已就绪 |
-| 自动修复 / 安装软件包 | 未实现 |
-| 执行验证 / 回滚 | 未实现 |
-
-## 安全设计
-
-- **默认诊断不执行项目代码。** RepoRescue 本身不会修改用户项目文件、改变依赖、运行测试或构建，也不会执行修复。
-  当前 Python 的 `--version` 探测与项目代码执行是不同操作。
-- **启动需要显式确认。** 只支持绝对路径的当前 Python 解释器，加上绝对路径的根目录 `main.py`。
-  执行器独立检查完整 argv、工作目录和解析后的入口路径。不接受任意 shell 命令、额外参数、其他入口或环境覆盖。
-  执行时使用 `shell=False`、禁用标准输入，并复制当前环境；不读取 `.env`。
-  没有受支持的入口属于能力限制。
-- **启动探测风险为 CAUTION。** 项目代码可能写文件或字节码、访问网络、启动服务或阻塞。
-  RepoRescue 不会自动运行 pip、安装软件包、修改依赖声明或修复项目。
-- **观察范围有界。** 启动观察窗口为 5 秒。超时后停止直接子进程，终止确认和输出清理最多可能再用两秒。
-  不监督后代进程。启动捕获每个流最多保留 64 KiB，返回的 stdout/stderr 摘录各最多 4,096 个字符。
-- **结果只说明有限观察。** 退出码 0 只表示探测成功结束；长时间运行的应用超时可能是正常现象。
-  结构化 Evidence 记录实际观察。修复计划保持 `not_executed`，验证步骤保持 `not_run`。
-- **这些控制不是沙箱。** 没有通用 secret 脱敏、进程树或资源隔离，也不能防止并发路径变化。
-  终端路径简化仅用于展示。JSON 和捕获输出仍可能包含本机路径或敏感数据，分享前请审查报告。
-
-漏洞的私下反馈方式见 [SECURITY.md](SECURITY.md)。
-
-## 故障样例
+### 故障样例
 
 [examples/fixtures](examples/fixtures/README.md) 包含结果确定的故障项目，用于回归测试、演示和发布验证，
 不是生产应用示例：
@@ -192,6 +156,122 @@ JSON schema **`0.2`** 与软件包版本 `0.3.0a1` 分开管理。报告包含�
 JSON 可以用于自动化和 CI，并为未来与编程 Agent 的原生集成提供数据基础。
 Agent 集成和 MCP **尚未实现**；当前没有 Codex、Claude Code 或 Cursor 集成。
 
+## 安全与限制
+
+- **默认诊断不执行项目代码。** RepoRescue 本身不会修改用户项目文件、改变依赖、运行测试或构建，也不会执行修复。
+  当前 Python 的 `--version` 探测与项目代码执行是不同操作。
+- **启动需要显式确认。** 只支持绝对路径的当前 Python 解释器，加上绝对路径的根目录 `main.py`。
+  执行器独立检查完整 argv、工作目录和解析后的入口路径。不接受任意 shell 命令、额外参数、其他入口或环境覆盖。
+  执行时使用 `shell=False`、禁用标准输入，并复制当前环境；不读取 `.env`。
+  没有受支持的入口属于能力限制。
+- **启动探测风险为 CAUTION。** 项目代码可能写文件或字节码、访问网络、启动服务或阻塞。
+  RepoRescue 不会自动运行 pip、安装软件包、修改依赖声明或修复项目。
+- **观察范围有界。** 启动观察窗口为 5 秒。超时后停止直接子进程，终止确认和输出清理最多可能再用两秒。
+  不监督后代进程。启动捕获每个流最多保留 64 KiB，返回的 stdout/stderr 摘录各最多 4,096 个字符。
+- **结果只说明有限观察。** 退出码 0 只表示探测成功结束；长时间运行的应用超时可能是正常现象。
+  结构化 Evidence 记录实际观察。修复计划保持 `not_executed`，验证步骤保持 `not_run`。
+- **这些控制不是沙箱。** 没有通用 secret 脱敏、进程树或资源隔离，也不能防止并发路径变化。
+  终端路径简化仅用于展示。JSON 和捕获输出仍可能包含本机路径或敏感数据，分享前请审查报告。
+
+漏洞的私下反馈方式见 [SECURITY.md](SECURITY.md)。
+
+自动修复、执行验证和回滚均未实现。当前真实诊断能力仍是 Python only；
+其他语言及产品形态属于后文的未来规划。
+
+## 扩展 RepoRescue
+
+v0.3 已实现实验性的扩展基础，面向希望补充领域诊断知识的开发者。
+普通 CLI 用户可以直接使用前面的命令，不需要编写或加载 Pack。
+
+程序化接入流程为：
+
+公共 SDK → 显式注册 / 受控的已安装软件包发现 → Extension Pipeline → Core。
+
+Discovery 将实例加入 registry，宿主再显式将 snapshot 提供给 Core pipeline。
+这些 API 不会给普通 CLI 增加 Pack 加载参数。
+
+### 公共 SDK
+
+Pack 作者应从 `agent_doctor.sdk` 导入类型，避免依赖私有模块。
+SDK 通过明确的 public surface 导出 metadata、能力协议、Core models，以及作者需要的验证和错误类型，
+复用原有类型，不维护另一套 models。
+
+`EXTENSION_API_VERSION = "1"` 在 v0.3 中仍为实验性，与软件包版本 `0.3.0a1`、
+JSON schema `0.2` 分开管理。SDK 不暴露 workflow 内部实现、Core 执行对象或 Python 私有诊断逻辑。
+
+### Pack model
+
+Pack 是某个技术领域的知识集合；Extension contract 定义它能提供什么能力。
+Metadata 声明稳定 ID、`PackKind`、API 版本、平台、所需工具和 `Capability` 集合。
+
+| Contract | Pack 提供的内容 |
+| --- | --- |
+| Detector | 识别项目特征 |
+| EvidenceProvider | 收集观察证据 |
+| DiagnosisRule | 生成与证据关联的诊断 |
+| RepairPlanner | 描述修复动作与风险 |
+| Verifier | 描述验证步骤 |
+
+Pack 负责知识和计划，Core 负责调度、兼容性、安全、确认、资源限制和执行权限。
+唯一真实的内置语言 Pack 是 `python.core`；其他 kind 不代表已实现对应支持。
+
+### PackRegistry
+
+`PackRegistry()` 创建空 registry，`PackRegistry.default()` 只包含 `python.core`。
+通过 `register(pack)` 显式注册实例，插入前完成声明验证和重复 ID 检查；
+失败注册不改变已有成员，也不会调用 Pack 的业务阶段。
+
+用 `snapshot()` 捕获注册顺序；运行时兼容性由 Core pipeline 判断。
+声明稳定性和数据使用规则见 SDK 指南。
+
+### 受控 discovery
+
+宿主可以显式发现当前 Python 环境中已安装、可信的软件包：
+
+```python
+from agent_doctor.sdk import PackRegistry, discover_installed_packs
+
+registry = PackRegistry.default()
+result = discover_installed_packs(registry)
+snapshot = registry.snapshot()
+```
+
+Discovery 只查询 `reporescue.packs` entry points，由无参数 factory 返回 Pack 实例。
+处理顺序确定，普通 discovery 错误互相隔离，重复 ID 不覆盖已有 Pack。
+它不是 installer、marketplace 或 enable/disable 管理器，不扫描插件目录、不查询网络，
+也不调用 Pack 的诊断阶段。
+
+**CLI 不会自动发现或加载第三方 Pack。** 导入 SDK 或创建默认 registry 也不会触发 discovery。
+
+### 最小示例 Pack
+
+[官方示例](examples/extensions/example_language_pack.py) 的 ID 为 `example.language`，
+只依赖公共 SDK 和 Python 标准库。它观察 `.reporescue-example` 标记，
+生成 Evidence、INFO 诊断及描述性的修复/验证计划，不执行命令，也不修改项目。
+
+[SDK 演示目录](examples/extension-demo/README.md) 是 synthetic 示例，独立于真实故障样例。
+Example Pack 不默认加载，也不作为 wheel runtime module 安装。在源码仓库中可以显式注册：
+
+```python
+from agent_doctor.sdk import PackRegistry
+from examples.extensions.example_language_pack import ExampleLanguagePack
+
+registry = PackRegistry.default()
+registry.register(ExampleLanguagePack())
+snapshot = registry.snapshot()
+```
+
+### 信任边界与开发文档
+
+**第三方 Pack 是可执行 Python，validation 不是 sandbox。**
+加载 entry point 和调用 factory 都会执行其代码。SDK 不授予 Core executor、任意 shell 或修复权限，
+但第三方代码仍可自行使用其他 Python API 并产生副作用。只安装、加载可信来源的 Pack。
+
+先阅读 [SDK 指南](docs/extension-sdk.md)，了解作者契约和接入示例。
+[架构文档](docs/architecture.md) 区分当前 v0.3 实现与历史 v0.1 设计。
+[发布说明](docs/releases/v0.3.0-alpha.1.md)、[CHANGELOG](CHANGELOG.md) 和 [docs](docs/)
+提供兼容性与发布背景。
+
 ## 路线图
 
 以下均为未来规划，此 alpha 版本尚未实现，也不承诺交付时间：
@@ -205,7 +285,7 @@ Agent 集成和 MCP **尚未实现**；当前没有 Codex、Claude Code 或 Curs
 
 当前工具没有 GUI、其他语言支持，也不依赖 LLM。
 
-## 开发
+## 参与贡献
 
 从仓库根目录运行：
 
@@ -216,24 +296,16 @@ python -m unittest discover
 测试不需要安装项目或手工设置 `PYTHONPATH`。默认工作流测试不执行项目代码；
 启动测试会显式确认运行经过审查的小型样例，并检查样例文件与修改时间保持不变。
 
-CLI 协调扫描与检测、检查与命令提议、受控执行、基于证据的诊断，以及终端和 JSON 报告。
-[原始架构](docs/architecture.md) 是历史 v0.1 设计；[docs](docs/) 还包含 JSON 契约和发布审查说明。
-
-实验性的 [Extension SDK foundation](docs/extension-sdk.md) 提供公共 SDK、Pack model、显式 `PackRegistry`、
-受控的已安装软件包 discovery API 及[官方示例 Pack](examples/extensions/example_language_pack.py)。
-Extension API v1 仍为实验性。当前运行时仅使用 built-in Pack，唯一真实语言 Pack 为 `python.core`；
-宿主可显式发现已安装 Pack 的 entry points；CLI 尚未自动启用 discovery，
-没有 marketplace 或 installer。
-加载 entry point 与调用 factory 会执行第三方 Python 代码，只应加载可信来源的 Pack。
-SDK 验证不是 sandbox，也不授予 Core 执行权限。
-
 [GIF 生成脚本](tools/generate_demo_gif.py) 使用已安装的项目 CLI，并将 Pillow 作为本地文档工具。
 Pillow 不是运行时依赖；缺少 Pillow 时只显示明确提示，不会自动安装。
 
-## 参与贡献
-
 请参阅 [CONTRIBUTING.md](CONTRIBUTING.md)。保持改动聚焦，验证其行为，并提供结果证据。
 运行时依赖仍为空。源码仓库：[furX7/RepoRescue](https://github.com/furX7/RepoRescue)。
+
+## 安全反馈
+
+漏洞反馈方式见 [SECURITY.md](SECURITY.md)。分享敏感细节前先安排私下反馈渠道，
+不要在公开 issue 中贴出凭证或私人用户数据。
 
 ## License
 

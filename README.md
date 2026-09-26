@@ -33,10 +33,16 @@ python -m venv .venv
 .\.venv\Scripts\repo-rescue.exe "C:\work\sample" --output "C:\work\report.json"
 ```
 
-To install a release wheel instead:
+Source installation:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install .\dist\repo_rescue-0.2.0a1-py3-none-any.whl
+python -m pip install .
+```
+
+To install a release wheel, download the `.whl` file from GitHub Releases, then run:
+
+```powershell
+python -m pip install <path-to-downloaded-wheel>
 ```
 
 The package version is `0.2.0a1` (Python's spelling of this alpha release).

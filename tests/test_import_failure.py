@@ -351,5 +351,23 @@ class ImportFailureDiagnosisTests(unittest.TestCase):
             self.assertEqual(environment_before, dict(os.environ))
 
 
+    def test_symbol_import_with_standard_location_suffix(self) -> None:
+        evidence = analyze_import_failure(
+            self.execution(stderr="ImportError: cannot import name 'Widget' from 'package.api' (C:\\project\\package\\api.py)"), 0
+        )
+        self.assertEqual(evidence.metadata['status'], 'symbol_import_failure')
+        self.assertEqual(evidence.metadata['source_module'], 'package.api')
+        self.assertEqual(evidence.metadata['imported_symbol'], 'Widget')
+        self.assertNotIn('missing_module', evidence.metadata)
+
+
+    def test_symbol_import_with_location_and_python_suggestion(self) -> None:
+        evidence = analyze_import_failure(
+            self.execution(stderr="ImportError: cannot import name 'missing_symbol' from 'helper' (C:\\project\\helper.py). Did you mean: 'existing_symbol'?"), 0
+        )
+        self.assertEqual(evidence.metadata['imported_symbol'], 'missing_symbol')
+        self.assertNotIn('existing_symbol', repr(evidence.metadata.get('imported_symbol')))
+
+
 if __name__ == "__main__":
     unittest.main()

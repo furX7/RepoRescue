@@ -135,7 +135,7 @@ def render_terminal_report(
             if diagnosis.repair_plan is not None:
                 lines.append(f"  Suggested repair (preview only, {diagnosis.repair_plan.risk}): {diagnosis.repair_plan.summary}")
                 lines.append("  Verification (planned, not run): " + "; ".join(
-                    step.description for step in diagnosis.repair_plan.verification_steps
+                    step.description.rstrip('.') for step in diagnosis.repair_plan.verification_steps
                 ))
     else:
         lines.append("- No problems detected by the current checks.")
@@ -156,7 +156,15 @@ def render_terminal_report(
                 if status in ('success', 'failed', 'timeout'):
                     lines.append(f"Observation window: {item.metadata['timeout_seconds']} seconds; exit code: {item.metadata['exit_code']}")
                     if item.metadata.get('stderr_excerpt'):
-                        lines.append('Startup stderr excerpt: ' + str(item.metadata['stderr_excerpt'])[:512])
+                        excerpt = str(item.metadata['stderr_excerpt'])
+                        import_already_shown = any(
+                            observed.kind == 'python_import_failure'
+                            and observed.metadata.get('raw_message')
+                            and observed.metadata['raw_message'] in excerpt
+                            for observed in evidence
+                        )
+                        if not import_already_shown:
+                            lines.append('Startup stderr excerpt: ' + excerpt[:512])
                     if status == 'success':
                         lines.append('The supported startup probe completed successfully; this does not establish project health.')
                     if status == 'timeout':

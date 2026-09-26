@@ -30,7 +30,9 @@ _MODULE_NOT_FOUND = re.compile(
 )
 _SYMBOL_IMPORT_FAILURE = re.compile(
     rf"^ImportError: cannot import name (?P<symbol_quote>['\"])(?P<symbol>[^'\"\r\n]+)"
-    rf"(?P=symbol_quote) from (?P<module_quote>['\"])(?P<module>{_MODULE_NAME})(?P=module_quote)$"
+    rf"(?P=symbol_quote) from (?P<module_quote>['\"])(?P<module>{_MODULE_NAME})(?P=module_quote)"
+    r"(?: \([^\r\n]*\))?"
+    r"(?:\. Did you mean: (?P<hint_quote>['\"])[^'\"\r\n]+(?P=hint_quote)\?)?$"
 )
 
 

@@ -1,0 +1,4 @@
+[project]
+name = "fixture-combined-failures"
+version = "0.0.0"
+requires-python = "<3.0"

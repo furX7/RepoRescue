@@ -1,0 +1,4 @@
+[project]
+name = "fixture-python-version-mismatch"
+version = "0.0.0"
+requires-python = "<3.0"

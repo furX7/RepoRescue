@@ -1,6 +1,7 @@
 include LICENSE README.md SECURITY.md CONTRIBUTING.md .gitignore
 recursive-include docs *.md
 recursive-include tests *.py
+recursive-include examples/fixtures *.py *.toml *.md
 global-exclude *.py[cod]
 prune .venv
 prune venv

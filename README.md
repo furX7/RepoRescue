@@ -286,6 +286,13 @@ Simplified JSON excerpt (project/environment and some diagnosis fields omitted):
 The environment probe already run during diagnosis is distinct from future repair
 verification steps, which are not run.
 
+## Real failure fixtures / Demo projects
+
+[examples/fixtures](examples/fixtures/README.md) contains deterministic broken
+projects used for testing and demonstration. The fixture guide lists expected
+findings and explains explicit API confirmation for startup execution; the CLI
+only proposes startup. These examples need no network or dependency installation.
+
 ## Architecture
 
 ```text

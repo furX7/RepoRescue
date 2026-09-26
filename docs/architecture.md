@@ -338,6 +338,30 @@ repair/verification execution, transactions, rollback, GUI and LLM remain future
 work. Workflow, CLI, JSON schema 0.2, runtime dependencies and package version
 are unchanged; no Pack metadata or new CLI switches are exposed.
 
+## Public SDK surface
+
+The experimental v0.3 author facade is `src/agent_doctor/sdk.py`, with explicit
+`__all__` re-exports of selected existing contracts and Core models. API v1 is
+experimental during v0.3. See [extension-sdk.md](extension-sdk.md) for the public
+names, author checks/errors, safety rules and the official synthetic example.
+
+```text
+Third-party Pack
+    ↓
+agent_doctor.sdk
+    ↓
+Extension Contracts + Core Models
+    ↓
+Core Extension Pipeline (explicit static configuration)
+```
+
+SDK does not expose execution authority. It has no dependency on workflow, CLI
+or executor. The example imports only the SDK and standard library, and tests
+explicitly supply it to the unchanged pipeline. Core runtime does not import
+the example; `BUILTIN_EXTENSIONS` still contains only PythonCoreExtension.
+SDK enters the wheel; example/demo/docs enter the sdist. Dynamic third-party
+discovery and automatic loading remain unimplemented.
+
 ## Product goal
 
 Given a project path, RepoRescue scans the project, identifies a Python project, inspects the environment, proposes and safely executes approved diagnostic commands, captures evidence, performs rule-based diagnosis, and presents a report.

@@ -246,6 +246,10 @@ evidence-based diagnosis, and terminal/JSON reporting. The
 [original architecture](docs/architecture.md) documents the historical v0.1 baseline;
 [docs](docs/) also contains the JSON contract and release review.
 
+The experimental [Extension SDK foundation](docs/extension-sdk.md) includes an
+[official example Pack](examples/extensions/example_language_pack.py). Runtime
+remains built-in only; dynamic third-party discovery is not yet implemented.
+
 The [GIF generator](tools/generate_demo_gif.py) uses an already installed project
 CLI and Pillow as a local documentation tool. Pillow is not a runtime dependency;
 missing Pillow produces a clear message instead of installing it.

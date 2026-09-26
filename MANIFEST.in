@@ -2,6 +2,8 @@ include LICENSE README.md README.zh-CN.md SECURITY.md CONTRIBUTING.md CHANGELOG.
 graft docs
 recursive-include tests *.py
 recursive-include examples/fixtures *.py *.toml *.md
+recursive-include examples/extensions *.py
+include examples/extension-demo/.reporescue-example examples/extension-demo/README.md
 include tools/generate_demo_gif.py
 global-exclude *.py[cod]
 prune .venv

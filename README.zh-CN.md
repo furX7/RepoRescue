@@ -218,6 +218,10 @@ python -m unittest discover
 CLI 协调扫描与检测、检查与命令提议、受控执行、基于证据的诊断，以及终端和 JSON 报告。
 [原始架构](docs/architecture.md) 是历史 v0.1 设计；[docs](docs/) 还包含 JSON 契约和发布审查说明。
 
+实验性的 [Extension SDK foundation](docs/extension-sdk.md) 提供
+[官方示例 Pack](examples/extensions/example_language_pack.py)。当前运行时仅使用 built-in Pack，
+尚未实现动态第三方发现。
+
 [GIF 生成脚本](tools/generate_demo_gif.py) 使用已安装的项目 CLI，并将 Pillow 作为本地文档工具。
 Pillow 不是运行时依赖；缺少 Pillow 时只显示明确提示，不会自动安装。
 

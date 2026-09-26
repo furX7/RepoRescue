@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "repo-rescue"
+dynamic = ["version"]
+description = "Evidence-driven diagnosis and recovery planning for broken development projects"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["agent", "diagnostics", "developer-tools", "python", "coding-agents"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.scripts]
+repo-rescue = "agent_doctor.cli:main"
+agent-doctor = "agent_doctor.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/furX7/RepoRescue"
+Repository = "https://github.com/furX7/RepoRescue"
+Issues = "https://github.com/furX7/RepoRescue/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["agent_doctor"]
+namespaces = false
+
+[tool.setuptools.dynamic]
+version = {attr = "agent_doctor.__version__"}

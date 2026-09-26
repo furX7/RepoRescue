@@ -1,0 +1,210 @@
+# RepoRescue
+
+Evidence-driven diagnosis and recovery planning for broken development projects.
+
+RepoRescue diagnoses why a development project may not run, explains the root
+cause chain, and generates safe repair and verification plans without modifying
+the project. Current evidence coverage is limited to shallow Python markers and
+the interpreter version probe.
+
+**v0.2.0-alpha · Windows First · Python only · READ ONLY · MIT**
+
+Source repository: [furX7/RepoRescue](https://github.com/furX7/RepoRescue).
+
+Current checks scan filenames and probe the interpreter running RepoRescue.
+They do not execute project code. A clean report does not prove a project works.
+
+## Why
+
+Evidence → Diagnosis → Root Cause Chain → Repair Preview → Verification Plan.
+Each problem references evidence. Causes remain limited to what was observed;
+repair and verification descriptions are plans, not executed operations.
+
+## Quick start (Windows)
+
+Use Python 3.12 or newer. From the source directory:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install .
+.\.venv\Scripts\repo-rescue.exe --help
+.\.venv\Scripts\repo-rescue.exe --version
+.\.venv\Scripts\repo-rescue.exe "C:\work\sample"
+.\.venv\Scripts\repo-rescue.exe "C:\work\sample" --output "C:\work\report.json"
+```
+
+To install a release wheel instead:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install .\dist\repo_rescue-0.2.0a1-py3-none-any.whl
+```
+
+The package version is `0.2.0a1` (Python's spelling of this alpha release).
+External brand: RepoRescue. Internal Python package: `agent_doctor`.
+Former working name: Agent Doctor. The `agent-doctor` CLI is retained as a temporary
+compatibility alias; it displays the RepoRescue brand and delegates to the same entry point.
+With an activated environment, use `repo-rescue <project_path>`.
+After installation, `python -B -m agent_doctor.cli <project_path>` also works.
+From a source checkout without installation:
+
+```powershell
+python -B -c "import sys; sys.path.insert(0, 'src'); from agent_doctor.cli import main; sys.exit(main(sys.argv[1:]))" "C:\work\sample"
+```
+
+Without `--output`, no report file is written. Explicit output creates a new UTF-8
+JSON file; the parent directory must exist, and existing files are never overwritten.
+Installation is an explicit user action. RepoRescue never installs dependencies.
+
+### Exit codes
+
+- `0`: completed without ERROR/CRITICAL diagnostics; warnings may exist.
+- `1`: completed with ERROR/CRITICAL diagnostics.
+- `2`: invalid arguments/input, output-write failure, or tool failure.
+
+## Example terminal report
+
+An empty directory can produce this report (interpreter details vary):
+
+```text
+RepoRescue
+Project: C:\work\sample
+Detection: unknown
+Python Environment: available; Python 3.13.1; launch not verified; executable: C:\Python\python.exe
+
+Diagnostics:
+- [WARNING] project_detection: The shallow scan found no Python project markers
+  Recommended actions:
+  - Check that the selected directory is the intended project root
+  - Check whether Python files are below the shallow scan depth
+  - Check for common Python project files
+  Evidence: detection:python
+  Root cause: Shallow scan found no Python markers
+  Suggested repair (preview only, LOW): Review the selected project root and Python file locations
+  Verification (planned, not run): Rescan the confirmed root and review actual matched Python filenames within the supported depth.
+
+READ ONLY: Repair preview only. Verification steps were not run.
+RepoRescue currently performs limited checks.
+```
+
+`unknown` means no markers were found within the scan limits, not that the directory
+cannot contain a Python project. No-problem reports explicitly mention limited checks.
+
+## Current capabilities
+
+- Shallow Python marker detection (`likely` / `unknown`).
+- Current interpreter and dependency-manifest filename inspection.
+- Controlled current-interpreter `--version` execution.
+- A few structured, evidence-backed diagnosis rules.
+- Short evidence-referenced root cause chains.
+- Descriptive repair previews with planned verification steps.
+- Concise terminal output and agent-readable JSON.
+
+## Safety and limitations
+
+- READ ONLY target handling: no source changes, installation, deletion, project-code
+  execution, tests, builds, startup, or target bytecode generation.
+- The executor independently validates exact argv and working directory. Its only
+  executable operation is `<current Python executable> --version`, with `shell=False`
+  and a timeout. Unknown SAFE commands are rejected; CAUTION does not execute;
+  DANGEROUS is rejected. No interactive approval bypass exists.
+- Repair plans always say `execution_status: not_executed`; verification steps say
+  `status: not_run`. They grant no permission to execute anything.
+- Scans root and direct children, at most 1,000 entries. Skips `.git`, `.venv`, `venv`,
+  `node_modules`, `__pycache__`, symlinks and junctions. Virtual-environment/cache roots
+  are rejected. Weak filename markers can give false positives; deeper projects can
+  be missed. File contents and dependency conflicts are not analyzed.
+- The interpreter is the one running RepoRescue, not an automatically selected
+  project environment. Launch verification is only a version probe.
+- No arbitrary traceback, import-error, pytest, dependency, or application diagnosis.
+- Confidence is a rule indicator, not a statistical probability. Chains may describe
+  consequences without establishing an underlying cause.
+- Windows First; Python 3.13.1 was tested. The minimum 3.12 and Linux/macOS have not
+  been separately verified for this release.
+- Controls are not a sandbox: they trust the current interpreter, offer no generic
+  secret masking, hard capture-memory bound, process-tree/resource isolation, or
+  protection against concurrent filesystem changes. Returned output is capped.
+- Explicit report-write failure can leave a partial new file. Reports contain local
+  paths and captured output; review them before sharing.
+- No LLM, repair execution, verification execution, rollback, other languages,
+  Markdown/HTML/database reports, MCP, GUI, Web UI, or IDE integration.
+
+## Machine report contract
+
+JSON schema version `0.2` is separate from tool/package version `0.2.0a1`.
+Existing diagnosis fields are retained; consumers should accept additive fields.
+See [JSON contract](docs/json-schema.md) for field definitions.
+
+Overall status uses this priority:
+
+1. ERROR/CRITICAL → `issues_detected`.
+2. Otherwise unknown detection → `unknown`.
+3. Otherwise WARNING → `issues_detected`.
+4. Otherwise → `healthy` (only within the current limited checks).
+
+INFO safety notices alone do not indicate project failure. Tool failures return
+exit code 2 instead of generating a fabricated project report.
+Capabilities describe this tool version, not a project's health.
+
+Simplified JSON excerpt (project/environment and some diagnosis fields omitted):
+
+```json
+{
+  "schema_version": "0.2",
+  "tool": {"name": "repo-rescue", "version": "0.2.0a1"},
+  "status": "unknown",
+  "capabilities": {
+    "diagnosis": true,
+    "root_cause_analysis": true,
+    "repair_preview": true,
+    "verification_plan": true,
+    "repair_execution": false,
+    "verification_execution": false,
+    "rollback": false
+  },
+  "diagnostics": [{
+    "diagnosis_id": "python_detection_unknown",
+    "problem": "The shallow scan found no Python project markers",
+    "root_cause_chain": [{"id": "detection:no_markers", "title": "Shallow scan found no Python markers", "evidence_refs": ["detection:python"]}],
+    "repair_plan": {
+      "execution_status": "not_executed",
+      "verification_steps": [{"type": "file_check", "description": "Rescan the confirmed root and review actual matched Python filenames within the supported depth.", "status": "not_run"}]
+    }
+  }],
+  "evidence": [{"evidence_id": "detection:python"}]
+}
+```
+
+The environment probe already run during diagnosis is distinct from future repair
+verification steps, which are not run.
+
+## Architecture
+
+```text
+CLI → workflow → scan/detect → inspect/propose → controlled executor
+             → evidence + rule diagnosis → terminal/JSON report
+```
+
+Shared dataclasses keep the modules simple. Diagnosis cannot modify files; report
+code only presents results. No registry, generic rule engine, or repair executor.
+The [original design](docs/architecture.md) is a historical v0.1 baseline.
+
+## Future scope (not implemented)
+
+Future work may include repair execution and verification, rollback, additional
+rule packs, Node.js/Java/C++/Docker, Linux/macOS, optional LLM providers, MCP/agent
+tool integration, GUI/Web/IDE interfaces. None is promised by this alpha release.
+
+## Contributing and tests
+
+Fork, create a branch, make a small focused change with tests, and submit a PR.
+See [CONTRIBUTING](CONTRIBUTING.md) and [SECURITY](SECURITY.md).
+
+```powershell
+python -B -c "import sys, unittest; sys.path.insert(0, 'src'); suite = unittest.defaultTestLoader.discover('tests'); result = unittest.TextTestRunner(verbosity=2).run(suite); sys.exit(not result.wasSuccessful())"
+```
+
+Integration tests use isolated fixtures and never execute their source code.
+
+## License
+
+[MIT](LICENSE). Copyright (c) 2026 RepoRescue contributors.

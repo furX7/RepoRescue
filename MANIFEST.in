@@ -1,0 +1,8 @@
+include LICENSE README.md SECURITY.md CONTRIBUTING.md .gitignore
+recursive-include docs *.md
+recursive-include tests *.py
+global-exclude *.py[cod]
+prune .venv
+prune venv
+prune build
+prune dist

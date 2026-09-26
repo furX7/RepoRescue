@@ -207,3 +207,104 @@ Generic Python dependency and API evidence belongs in the Python Pack;
 ComfyUI/PyAV-specific compatibility knowledge can live in a relevant Pack.
 Core retains shared evidence, provenance, safety and execution policy. This
 record does not add a ComfyUI-specific rule or commit any item to the roadmap.
+
+## NousResearch/hermes-agent #123185
+
+**Rating: 🟡 Partial diagnosis**
+
+### Issue and reproduction
+
+On Windows, the project virtual environment used CPython 3.11.16, while
+launching `hermes` through `PATH` selected a standalone CPython 3.14.7. The
+startup failure was `ModuleNotFoundError: No module named
+'pydantic_core._pydantic_core'`; launching with the project venv's Python
+worked. The issue reports the problem against Hermes commit `fe417523fe`.
+
+A minimal trusted reproduction used an intact official `pydantic_core` wheel
+for CPython 3.12.14 in the project's `venv`, and CPython 3.13.1 as the
+external launcher. The Windows gateway venv-import setup logic from the
+project source was applied without modification in a minimal root `main.py`.
+The external interpreter then failed to import the native extension from the
+other interpreter's site-packages; running the same files with the venv's
+Python succeeded. This reproduces the interpreter/site-packages ABI failure,
+not Hermes' complete startup and crash-loop behavior. The reproduction's
+Python versions differ from the issue reporter's versions.
+
+### RepoRescue result
+
+RepoRescue 0.3.0a1's default diagnosis identified the external interpreter as
+different from the project venv and reported `project_interpreter_different`.
+With `--run-startup-probe`, it also captured the
+`pydantic_core._pydantic_core` import failure and reported the failed probe.
+It did not connect these observations into a root-cause chain.
+
+When two local virtual environments were present, RepoRescue marked the
+environment evidence `ambiguous` but still returned top-level `healthy` with
+no diagnosis. When run under the matching project interpreter, the default
+diagnosis was healthy and the startup probe succeeded.
+
+### Independently supported root cause and gaps
+
+The issue's working project environment and the interpreter selected for
+startup had different CPython versions. The imported `pydantic_core` native
+extension came from site-packages built for another CPython ABI. This is an
+interpreter, package-path and native-extension ABI mismatch, rather than a
+missing or inherently broken `pydantic_core` release.
+
+RepoRescue correctly detected the interpreter/venv mismatch and the startup
+import failure, but missed the causal connection between them. It also lacked
+evidence from `pyvenv.cfg`, the resolved package/module path, and native
+extension ABI compatibility. The `ambiguous` environment state should remain
+visible in the overall result instead of being masked by top-level `healthy`.
+
+The missing traceback/log ingestion and installed distribution/module-origin
+evidence also appeared in earlier cases. This case adds a more specific
+environment-to-import causal correlation gap and the need to inspect venv
+configuration, package paths and native extension ABI evidence. These are
+observations for evaluation only; they do not automatically enter the roadmap.
+
+## ANRAR4/AutoBTD6 #36
+
+- **Date:** 2026-09-27
+- **RepoRescue:** 0.3.0a1
+- **Result:** ❌ Missed diagnosis
+- **Issue:** [Python 3.13 cannot install TensorFlow](https://github.com/ANRAR4/AutoBTD6/issues/36)
+
+The reporter said Python 3.13 could not install TensorFlow and reported Python
+3.12.5 as working. The project has no `requires-python`; its unpinned
+`requirements.txt` lists TensorFlow. At the issue date, TensorFlow had no
+matching CPython 3.13 artifact. TensorFlow's own `Requires-Python: >=3.9` did
+not exclude Python 3.13. A historical pip candidate-resolution check failed
+for CPython 3.13 and succeeded when targeting the CPython 3.12 Windows wheel.
+This was a minimal resolver reproduction, not a full requirements install.
+
+RepoRescue returned `healthy` without a diagnosis. It correctly refrained from
+inventing a project Python version limit, but did not inspect dependency
+metadata or available wheel compatibility. The missing evidence layer is
+dependency distribution metadata: Python ABI tags and platform compatibility,
+in addition to `Requires-Python`. There was no root `main.py`; the startup
+probe was inapplicable to this install-time failure and was not run.
+
+This reinforces the observations on traceback/log input and dependency evidence.
+Unlike cases where imports and installed modules could be inspected, this
+failed install requires package-index and artifact-availability evidence.
+These findings are observations, not automatic roadmap additions.
+
+## First 5 Cases — Observed Patterns
+
+Counts below mark cases where the documented observation explicitly surfaced
+the pattern. They describe repeated evidence, not approved roadmap items.
+
+| Observed pattern | Cases | Count | Signal |
+| --- | --- | ---: | --- |
+| Existing traceback/log input | #1, #2, #3, #4 | 4/5 | Strong repeated signal |
+| Installed distribution and loaded-module source evidence | #1, #2, #3, #4 | 4/5 | Strong repeated signal |
+| Declared, locked, resolved and installed version distinction | #1, #2, #3, #5 | 4/5 | Strong repeated signal; the version sources vary by case |
+| Dependency/API/ABI compatibility evidence | #1, #2, #3, #4, #5 | 5/5 | Strong repeated signal |
+| Cross-evidence root-cause correlation | #1, #2, #3, #4, #5 | 5/5 | Strong repeated signal |
+| Healthy/unverified status semantics | #1, #2, #3, #4, #5 | 5/5 | Strong repeated signal |
+| Startup entrypoint coverage beyond root `main.py` | #1, #2 | 2/5 | Repeated, not yet as broad |
+
+Case #5 did not provide an install traceback, and installation did not succeed;
+therefore it is not counted for the first two patterns. Counts record observed
+gaps across these cases only and do not establish roadmap priority.

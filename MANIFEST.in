@@ -1,7 +1,8 @@
-include LICENSE README.md SECURITY.md CONTRIBUTING.md .gitignore
-recursive-include docs *.md
+include LICENSE README.md README.zh-CN.md SECURITY.md CONTRIBUTING.md .gitignore
+graft docs
 recursive-include tests *.py
 recursive-include examples/fixtures *.py *.toml *.md
+include tools/generate_demo_gif.py
 global-exclude *.py[cod]
 prune .venv
 prune venv

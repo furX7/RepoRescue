@@ -1,10 +1,16 @@
 # Security
 
-RepoRescue is a local, read-only diagnostic tool, not an execution sandbox.
-The executor allows only the current Python interpreter's exact `--version`
-operation, validates the working directory, avoids shell execution, and uses a
-timeout. Do not extend its allowlist with untrusted commands or trust a plugin's
-SAFE label as authorization. Repair previews are not execution permissions.
+By default, RepoRescue does not execute project code. It runs only diagnostic
+commands in its strict existing allowlist. RepoRescue does not support arbitrary
+shell command execution. Do not extend the allowlist with untrusted commands or
+trust a plugin's SAFE label as authorization. Repair previews are not execution
+permissions.
+
+With the explicit `--run-startup-probe` option, the user chooses to run a
+controlled startup probe. The only supported entrypoint is a `main.py` directly
+in the project root. The probe uses the current absolute Python interpreter,
+`shell=False`, CAUTION risk, and a timeout. Stdout and stderr capture are
+bounded. Project code may itself produce side effects.
 
 The interpreter must be trusted. There is no generic secret masking, hard capture
 memory bound, or process-tree isolation. Review report paths and captured output

@@ -1,0 +1,52 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Windows / Python ${{ matrix.python-version }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install project
+        run: python -m pip install .
+
+      - name: Run tests
+        run: python -m unittest discover
+
+      - name: CLI version
+        run: repo-rescue --version
+
+      - name: CLI help
+        run: repo-rescue --help
+
+      - name: Installed SDK smoke
+        run: >-
+          python -I -c "import agent_doctor.sdk;
+          from agent_doctor.sdk import PackRegistry, discover_installed_packs, EXTENSION_API_VERSION;
+          assert EXTENSION_API_VERSION == '1';
+          assert tuple(pack.metadata.id for pack in PackRegistry.default().snapshot()) == ('python.core',)"

@@ -7,7 +7,9 @@
 RepoRescue 帮助开发者理解 Python 项目为什么跑不起来：有哪些证据、根因链说明了什么，以及可以如何修复。
 它提供修复方案预览和验证计划，便于你在实际操作前审查改动，并明确修复后该如何检查。
 
-**v0.2.0-alpha.2 · Windows First · Python only · READ ONLY by default · MIT**
+**v0.3.0-alpha.1 · Windows First · Python only · READ ONLY by default · MIT**
+
+详见 [v0.3 alpha 发布说明](docs/releases/v0.3.0-alpha.1.md)。
 
 默认采用安全策略。执行项目代码需要显式确认。
 RepoRescue 不会自动执行修复或安装软件包。
@@ -58,7 +60,7 @@ repo-rescue "C:\work\sample" --run-startup-probe
 如果未激活环境，可将 `repo-rescue` 替换为 `.\.venv\Scripts\repo-rescue.exe`。
 例如，未激活环境时可直接运行 `.\.venv\Scripts\repo-rescue.exe --version`。
 安装后也可以使用 `python -B -m agent_doctor.cli <project>`。
-软件包版本为 `0.2.0a2`，内部 Python 包名为 `agent_doctor`。
+软件包版本为 `0.3.0a1`，内部 Python 包名为 `agent_doctor`。
 项目曾用名为 Agent Doctor；临时兼容命令 `agent-doctor` 会调用同一个 CLI（命令行工具）。
 
 如果 GitHub Releases 提供 release wheel，可下载后安装本地文件：
@@ -122,8 +124,8 @@ No repair actions were executed.
 - 与证据关联的根因链、修复方案预览，以及计划中的验证步骤。
 - 便于人阅读的终端报告和简化的已知路径展示；机器可读的 JSON 仍保留诊断与自动化需要的真实路径。
 
-当前范围为 Windows First、Python only。已测试 Python 3.13.1；最低版本 3.12 和 Linux/macOS
-尚未在此 alpha 阶段单独验证。
+当前范围为 Windows First、Python only。GitHub Actions 已验证发布前基线在 Windows + Python 3.12
+及 Windows + Python 3.13 下通过；本地验证使用 Python 3.13.1。Linux/macOS 尚未在此 alpha 阶段单独验证。
 
 ## 当前支持的诊断
 
@@ -183,7 +185,7 @@ repo-rescue "C:\work\sample" --output "C:\work\report.json"
 不指定 `--output` 就不会写报告文件。输出的父目录必须已经存在，已有报告不会被覆盖。
 写入失败时可能留下不完整的新文件。
 
-JSON schema **`0.2`** 与软件包版本 `0.2.0a2` 分开管理。报告包含项目和环境信息、结构化 Evidence、诊断、
+JSON schema **`0.2`** 与软件包版本 `0.3.0a1` 分开管理。报告包含项目和环境信息、结构化 Evidence、诊断、
 根因链、修复预览及验证计划。字段定义见 [JSON 契约](docs/json-schema.md)。
 `healthy` 状态只表示当前有限检查未发现问题，不是对项目整体健康的保证；仅有 INFO 不表示项目故障。
 
@@ -195,14 +197,13 @@ Agent 集成和 MCP **尚未实现**；当前没有 Codex、Claude Code 或 Curs
 以下均为未来规划，此 alpha 版本尚未实现，也不承诺交付时间：
 
 - 规划中：深入 Python 诊断。
-- 规划中：Extension SDK / Packs。
 - 规划中：Node / Java / C++ / Docker 支持。
 - 规划中：安全修复执行器（Safe Repair Executor）。
 - 规划中：执行验证与回滚。
 - 规划中：RepoRescue Desktop，为不熟悉命令行的用户提供 GUI / EXE。
 - 规划中：Agent 集成。
 
-当前工具没有插件 SDK、GUI、其他语言支持，也不依赖 LLM。
+当前工具没有 GUI、其他语言支持，也不依赖 LLM。
 
 ## 开发
 
@@ -218,8 +219,9 @@ python -m unittest discover
 CLI 协调扫描与检测、检查与命令提议、受控执行、基于证据的诊断，以及终端和 JSON 报告。
 [原始架构](docs/architecture.md) 是历史 v0.1 设计；[docs](docs/) 还包含 JSON 契约和发布审查说明。
 
-实验性的 [Extension SDK foundation](docs/extension-sdk.md) 提供
-[官方示例 Pack](examples/extensions/example_language_pack.py)。当前运行时仅使用 built-in Pack，
+实验性的 [Extension SDK foundation](docs/extension-sdk.md) 提供公共 SDK、Pack model、显式 `PackRegistry`、
+受控的已安装软件包 discovery API 及[官方示例 Pack](examples/extensions/example_language_pack.py)。
+Extension API v1 仍为实验性。当前运行时仅使用 built-in Pack，唯一真实语言 Pack 为 `python.core`；
 宿主可显式发现已安装 Pack 的 entry points；CLI 尚未自动启用 discovery，
 没有 marketplace 或 installer。
 加载 entry point 与调用 factory 会执行第三方 Python 代码，只应加载可信来源的 Pack。

@@ -1,6 +1,6 @@
 # JSON contract: schema 0.2
 
-Schema version `0.2` is independent of package version `0.2.0a2`.
+Schema version `0.2` is independent of package version `0.3.0a1`.
 Existing fields are retained; new fields are additive. Accept unknown extra fields.
 
 | Top-level field | Meaning |

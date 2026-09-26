@@ -8,7 +8,9 @@ RepoRescue helps explain why a Python project may not run by connecting observed
 evidence to diagnoses and root cause chains. It produces repair previews and
 verification plans so developers can review what to change and how to check it.
 
-**v0.2.0-alpha.2 · Windows First · Python only · READ ONLY by default · MIT**
+**v0.3.0-alpha.1 · Windows First · Python only · READ ONLY by default · MIT**
+
+See the [v0.3 alpha release notes](docs/releases/v0.3.0-alpha.1.md).
 
 Safe by default. Project code execution requires explicit opt-in.
 RepoRescue does not automatically apply repairs or install packages.
@@ -61,7 +63,7 @@ own file, network, or service side effects. The flag does not bypass safety chec
 Without activation, use `.\.venv\Scripts\repo-rescue.exe` instead of `repo-rescue`.
 For example, `.\.venv\Scripts\repo-rescue.exe --version` works without activation.
 After installation, `python -B -m agent_doctor.cli <project>` is another entry point.
-The package version is `0.2.0a2`. Internal Python package: `agent_doctor`.
+The package version is `0.3.0a1`. Internal Python package: `agent_doctor`.
 Former working name: Agent Doctor. The temporary `agent-doctor` compatibility
 alias delegates to the same CLI.
 
@@ -133,8 +135,9 @@ Without the flag, startup remains `requires_confirmation` and project code is no
 - Human-readable terminal reports with concise known-path presentation, plus
   machine-readable JSON that retains real paths for diagnosis and automation.
 
-Scope is Windows First and Python only. Python 3.13.1 has been tested; the minimum
-3.12 and Linux/macOS have not been separately verified for this alpha.
+Scope is Windows First and Python only. GitHub Actions has verified the pre-release
+baseline on Windows with Python 3.12 and 3.13; local validation uses Python 3.13.1.
+Linux/macOS have not been separately verified for this alpha.
 
 ## Supported Diagnostics
 
@@ -205,7 +208,7 @@ repo-rescue "C:\work\sample" --output "C:\work\report.json"
 Without `--output`, no report file is written. The parent directory must already
 exist; an existing report is never overwritten. A write failure may leave a partial new file.
 
-JSON schema **`0.2`** is separate from package version `0.2.0a2`. Reports include
+JSON schema **`0.2`** is separate from package version `0.3.0a1`. Reports include
 project/environment details, structured Evidence, diagnoses, root cause chains,
 repair previews, and verification plans. See the [JSON contract](docs/json-schema.md).
 The `healthy` status means only that current limited checks found no issue; it is
@@ -220,14 +223,13 @@ Codex, Claude Code, or Cursor integration.
 Future / planned scope; none of the following is implemented or promised by this alpha:
 
 - Planned: deepen Python diagnostics.
-- Planned: Extension SDK / Packs.
 - Planned: Node / Java / C++ / Docker support.
 - Planned: Safe Repair Executor.
 - Planned: verification execution and rollback.
 - Planned: RepoRescue Desktop, a GUI / EXE for users less familiar with the CLI.
 - Planned: agent integrations.
 
-The current tool has no plugin SDK, GUI, other-language support, or LLM dependency.
+The current tool has no GUI, other-language support, or LLM dependency.
 
 ## Development
 
@@ -246,10 +248,12 @@ evidence-based diagnosis, and terminal/JSON reporting. The
 [original architecture](docs/architecture.md) documents the historical v0.1 baseline;
 [docs](docs/) also contains the JSON contract and release review.
 
-The experimental [Extension SDK foundation](docs/extension-sdk.md) includes an
-[official example Pack](examples/extensions/example_language_pack.py). Runtime
-defaults remain built-in only. Hosts can explicitly discover installed Pack entry
-points; discovery is not automatically enabled in CLI, with no marketplace or installer.
+The experimental [Extension SDK foundation](docs/extension-sdk.md) provides the
+public SDK, Pack model, explicit `PackRegistry`, controlled installed-package
+discovery and an [official example Pack](examples/extensions/example_language_pack.py).
+Extension API v1 is experimental. Runtime defaults remain built-in only, with
+`python.core` as the only real language Pack. Hosts can explicitly discover installed
+Pack entry points; discovery is not automatically enabled in CLI, with no marketplace or installer.
 Loading an entry point and invoking its factory execute third-party Python code.
 Use trusted Packs only; SDK validation is not a sandbox or a grant of Core execution authority.
 

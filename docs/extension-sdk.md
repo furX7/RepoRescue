@@ -4,7 +4,7 @@
 
 `agent_doctor.sdk` is the v0.3 foundation public extension surface.
 `EXTENSION_API_VERSION = "1"`; API v1 is **experimental during v0.3**, not a
-promise of permanent compatibility. The package version remains `0.2.0a2` and
+promise of permanent compatibility. The package version is `0.3.0a1` and
 the report schema remains `0.2`. These versions describe different contracts.
 
 Default workflow/CLI use built-in Packs only. Hosts can explicitly discover

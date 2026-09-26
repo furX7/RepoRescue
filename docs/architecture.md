@@ -5,7 +5,7 @@
 Historical v0.1 design baseline, with implemented v0.2 startup and v0.3 extension
 sections below. Current v0.3 includes the public SDK, explicit registry and
 controlled installed-Pack discovery API. CLI/workflow still use Python only,
-without automatic third-party loading. Package version is 0.2.0a2; JSON is 0.2.
+without automatic third-party loading. Package version is 0.3.0a1; JSON is 0.2.
 Some planned safeguards (such as general secret masking) are not implemented.
 
 ## Current alpha startup boundary

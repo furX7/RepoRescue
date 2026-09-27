@@ -108,7 +108,7 @@ class ReportTests(unittest.TestCase):
         loaded = json.loads(encoded)
         self.assertEqual(tuple(loaded), (
             "schema_version", "generated_at", "tool", "status", "capabilities", "project", "detection",
-            "environment", "diagnostics", "evidence",
+            "environment", "diagnostics", "evidence", "assessment",
         ))
         self.assertEqual(loaded["schema_version"], "0.2")
         self.assertEqual(loaded["generated_at"], self.timestamp.isoformat())

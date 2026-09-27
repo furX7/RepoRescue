@@ -8,19 +8,74 @@ Existing fields are retained; new fields are additive. Accept unknown extra fiel
 | schema_version | Contract version string |
 | generated_at | ISO 8601 generation timestamp |
 | tool | name (`repo-rescue`) and package version |
-| status | healthy, issues_detected, or unknown |
+| status | Legacy findings summary: healthy, issues_detected, or unknown; not project verification |
 | capabilities | Fixed tool capabilities, not per-project results |
 | project | ProjectInfo snapshot |
 | detection | level (likely/unknown) and matched_files |
 | environment | EnvironmentInfo snapshot, including launch verification |
 | diagnostics | DiagnosisResult objects |
 | evidence | Referenced structured observations |
+| assessment | Additive, optional run assessment; authoritative coverage and verification semantics when present |
 
 Status priority: ERROR/CRITICAL means issues_detected; otherwise unknown detection
 means unknown; otherwise WARNING means issues_detected; otherwise healthy.
 Healthy refers only to limited current checks. INFO safety notices alone are not
 project faults. CLI exit 0 allows warnings/unknown, exit 1 denotes ERROR/CRITICAL,
 and exit 2 denotes tool/input/output errors with no fabricated diagnostic report.
+
+### Run assessment — status semantics
+
+The legacy `status` algorithm and values above remain unchanged for consumers
+that already use schema 0.2. It is a findings summary only: `healthy` never
+establishes project health or completed checks. New consumers must consult
+`assessment` when present; CLI uses this same assessment instead of presenting
+the legacy label as a health conclusion. Old reports without this object do not
+establish verification either.
+
+`assessment` adds these fields:
+
+- `outcome`: `issues_detected` for any ERROR/CRITICAL/WARNING diagnosis;
+  otherwise `inconclusive` when a recorded check is incomplete, ambiguous or
+  unavailable; otherwise `no_issues_detected` within the supported checks.
+  Known findings take priority, while limitations remain visible separately.
+- `verification`: currently always `unverified`. This tool does not execute
+  project-wide verification. Neither Python `--version` nor startup exit 0
+  establishes project health.
+- `coverage`: `incomplete` when limitations are recorded, otherwise `limited`.
+  There is no full-coverage or verified-health claim in either case.
+- `startup_probe`: the observed `status` from startup Evidence, or
+  `not_observed` when absent, plus its run-local `evidence_refs` array. A success
+  label is accepted only when `executed` is true and `exit_code` is 0; otherwise
+  assessment uses `outcome_not_confirmed`. The original Evidence is retained.
+- `limitations`: objects with `check`, `reason` and `evidence_refs` arrays.
+  Reasons retain the observed status, or use `not_observed`, `not_verified`
+  or `outcome_not_confirmed` when a result cannot be established. References
+  can be empty when no corresponding Evidence exists.
+  Extension failures use `check: extension`, retain the known failure status as
+  `reason`, and add `extension_id` and `stage` (null for compatibility failures).
+  They have no fabricated Evidence references or raw exception text.
+
+Incomplete checks include unknown project detection, unverified Python launch,
+unrun/unsupported/unavailable/rejected/timed-out startup, ambiguous/unavailable
+local interpreter evidence, and unsupported/unreadable/invalid Python requirement
+metadata, and known Extension/Pack stage or compatibility failures. A startup
+result without a confirmed execution and exit code also
+remains incomplete. Missing `requires-python` is not invented as a restriction.
+These notices do not create new failure diagnoses.
+
+| Scenario without other findings | Legacy status | Assessment outcome | Coverage | Project verification |
+| --- | --- | --- | --- | --- |
+| Default scan; startup not run | healthy | inconclusive | incomplete | unverified |
+| Local interpreter ambiguous | healthy | inconclusive | incomplete | unverified |
+| Confirmed startup exit 0; no recorded limitations | healthy | no_issues_detected | limited | unverified |
+| Startup timeout INFO | healthy | inconclusive | incomplete | unverified |
+| ERROR/CRITICAL diagnosis | issues_detected | issues_detected | limited or incomplete | unverified |
+
+Legacy unknown-detection priority is also retained: it can yield `unknown` with
+a WARNING, while assessment reports the known issue and incomplete coverage.
+CLI exit codes remain unchanged; exit 0 is not a project verification result.
+This is an optional-field addition with unchanged existing fields, types, values
+and meanings, so schema stays 0.2. Package and schema versions remain independent.
 
 Capabilities are diagnosis, root_cause_analysis, repair_preview, verification_plan
 (true), and repair_execution, verification_execution, rollback (false).
@@ -65,8 +120,9 @@ and optional metadata (an object, empty for previous evidence kinds):
 
 Only incompatible triggers the ERROR python_version rule. Unsupported/read/format
 statuses are evidence notices, not project failure diagnoses. An overall healthy
-status does not establish compatibility when this check is unsupported; consult
-the evidence. No field is removed and schema remains 0.2.
+status does not establish compatibility when this check is unsupported;
+assessment records incomplete coverage and an inconclusive outcome unless a
+diagnosis takes priority. Consult the evidence. Schema remains 0.2.
 
 Project-local interpreter Evidence uses kind local_python_environment and source
 python_plugin. Metadata contains:
@@ -78,7 +134,7 @@ python_plugin. Metadata contains:
   filesystem/normalization failures or an unknown current executable.
 
 Only different produces a WARNING python_environment diagnosis, with its own
-evidence-linked chain and LOW preview. Ambiguous/unavailable are limitation notices;
+evidence-linked chain and LOW preview. Ambiguous/unavailable are assessment limitations;
 matched/none are positive or neutral evidence. Existing Python version mismatch
 diagnoses remain independent. Schema remains 0.2.
 

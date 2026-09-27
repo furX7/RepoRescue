@@ -9,7 +9,7 @@ from dataclasses import fields, is_dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
-from typing import Any, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Mapping, Sequence
 
 from . import __version__
 from .models import (
@@ -19,6 +19,9 @@ from .models import (
     Evidence,
     ProjectInfo,
 )
+
+if TYPE_CHECKING:
+    from .extension_pipeline import ExtensionFailureInfo
 
 
 _CAPABILITIES = {
@@ -63,8 +66,9 @@ def build_json_report(
     evidence: Sequence[Evidence],
     *,
     generated_at: datetime | None = None,
+    extension_failures: Sequence["ExtensionFailureInfo"] = (),
 ) -> dict[str, Any]:
-    """Build schema 0.2, retaining all previous fields and adding explicit capabilities.
+    """Build schema 0.2, retaining the legacy findings status and adding assessment.
 
     healthy means no issue found by these limited checks, not overall project health.
     Tool errors are handled by the CLI (exit 2), not turned into project reports.
@@ -89,8 +93,86 @@ def build_json_report(
         "environment": environment,
         "diagnostics": tuple(diagnostics),
         "evidence": tuple(evidence),
+        "assessment": _build_assessment(detection, environment, diagnostics, evidence, extension_failures),
     }
     return _json_value(report)
+
+
+def _startup_succeeded(observation: Evidence | None) -> bool:
+    """A success label alone is not evidence of a completed startup probe."""
+    return observation is not None and (
+        observation.metadata.get("execution_status") == "success"
+        and observation.metadata.get("executed") is True
+        and observation.metadata.get("exit_code") == 0
+    )
+
+
+def _build_assessment(
+    detection: DetectionResult, environment: EnvironmentInfo,
+    diagnostics: Sequence[DiagnosisResult], evidence: Sequence[Evidence],
+    extension_failures: Sequence["ExtensionFailureInfo"] = (),
+) -> dict[str, Any]:
+    """Separate observed findings, incomplete checks and project verification.
+
+    This summarizes existing observations only. It does not diagnose new faults
+    or promote a successful probe to project verification.
+    """
+    limitations = []
+
+    def limit(check: str, reason: str, refs: tuple[str, ...] = ()) -> None:
+        limitations.append({"check": check, "reason": reason, "evidence_refs": refs})
+
+    def refs_for(kind: str) -> tuple[str, ...]:
+        return tuple(item.evidence_id for item in evidence if item.kind == kind)
+
+    for failure in extension_failures:
+        limitations.append({
+            "check": "extension", "reason": _json_value(failure.status),
+            "extension_id": failure.extension_id, "stage": _json_value(failure.stage),
+            "evidence_refs": (),
+        })
+
+    if detection.level == "unknown":
+        limit("project_detection", "unknown", refs_for("detection"))
+    if environment.python_callable is not True:
+        limit("python_launch", "not_verified", refs_for("environment"))
+
+    startup = next((item for item in evidence if item.kind == "startup_probe"), None)
+    startup_status = startup.metadata.get("execution_status", "not_observed") if startup else "not_observed"
+    if startup is None:
+        limit("startup_probe", "not_observed")
+    elif startup_status == "success" and not _startup_succeeded(startup):
+        startup_status = "outcome_not_confirmed"
+        limit("startup_probe", startup_status, (startup.evidence_id,))
+    elif (startup_status not in ("success", "failed")
+          or startup.metadata.get("executed") is not True
+          or startup.metadata.get("exit_code") is None):
+        reason = startup_status if startup_status not in ("success", "failed") else "outcome_not_confirmed"
+        limit("startup_probe", reason, (startup.evidence_id,))
+
+    for item in evidence:
+        status = item.metadata.get("status", "not_observed")
+        if item.kind == "local_python_environment" and status not in ("matched", "different", "none"):
+            limit(item.kind, status, (item.evidence_id,))
+        if item.kind == "python_requirement" and status not in ("compatible", "incompatible"):
+            limit(item.kind, status, (item.evidence_id,))
+
+    if any(item.severity in ("ERROR", "CRITICAL", "WARNING") for item in diagnostics):
+        outcome = "issues_detected"
+    elif limitations:
+        outcome = "inconclusive"
+    else:
+        outcome = "no_issues_detected"
+    return {
+        "outcome": outcome,
+        "verification": "unverified",
+        "coverage": "incomplete" if limitations else "limited",
+        "startup_probe": {
+            "status": startup_status,
+            "evidence_refs": (startup.evidence_id,) if startup else (),
+        },
+        "limitations": limitations,
+    }
 
 
 def _presentation_path(value: str | PurePath) -> PurePath:
@@ -186,6 +268,7 @@ def render_terminal_report(
     environment: EnvironmentInfo,
     diagnostics: Sequence[DiagnosisResult],
     *, evidence: Sequence[Evidence] = (),
+    extension_failures: Sequence["ExtensionFailureInfo"] = (),
     requested_project_path: str | PurePath | None = None,
     cwd: str | PurePath | None = None,
 ) -> str:
@@ -211,11 +294,19 @@ def render_terminal_report(
     else:
         launch = "launch not verified"
 
+    assessment = _build_assessment(detection, environment, diagnostics, evidence, extension_failures)
+    outcome_text = {
+        "issues_detected": "Issues detected by the current checks.",
+        "no_issues_detected": "No issues detected within the supported checks.",
+        "inconclusive": "Inconclusive; checks are incomplete or ambiguous.",
+    }
     lines = [
         "RepoRescue",
         f"Project: {project.root_path}",
         f"Detection: {detection.level}",
         f"Python Environment: {availability}; Python {version}; {launch}; {interpreter_display}",
+        "Result: " + outcome_text[assessment["outcome"]],
+        "Project verification: unverified; only limited checks were performed.",
         "", "Findings:",
     ]
     # Sort only the presentation; JSON and independent diagnoses stay unchanged.
@@ -243,7 +334,7 @@ def render_terminal_report(
         else:
             lines.append(f"[{diagnosis.severity}] {label}: {problem}")
     if not ordered:
-        if startup is not None and startup.metadata.get('execution_status') == 'success':
+        if _startup_succeeded(startup):
             lines.append('No additional findings from the current limited checks.')
         else:
             lines.append('No problems detected by the current checks.')
@@ -277,6 +368,9 @@ def render_terminal_report(
         for item in actions:
             lines.extend(f"  - {action}" for action in item.recommended_actions)
     lines.append('')
+    for failure in extension_failures:
+        stage = failure.stage.value if failure.stage is not None else "compatibility"
+        lines.append(f"Extension check (limitation): {failure.extension_id}; {stage}; {_json_value(failure.status)}.")
     for item in evidence:
         if item.kind == 'startup_probe':
             status = item.metadata.get('execution_status')
@@ -302,8 +396,10 @@ def render_terminal_report(
                         )
                         if not import_already_shown:
                             lines.append('Startup stderr excerpt: ' + excerpt[:512])
-                    if status == 'success':
+                    if _startup_succeeded(item):
                         lines.append('Startup probe completed successfully.')
+                    elif status == 'success':
+                        lines.append('Startup probe success could not be confirmed.')
                     if status == 'timeout':
                         stopped = ('The direct child was stopped after timeout.' if item.metadata.get('terminated')
                                    else 'Direct-child termination could not be confirmed.')

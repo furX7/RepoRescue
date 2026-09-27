@@ -8,6 +8,30 @@ controlled installed-Pack discovery API. CLI/workflow still use Python only,
 without automatic third-party loading. Package version is 0.3.0a1; JSON is 0.2.
 Some planned safeguards (such as general secret masking) are not implemented.
 
+## Status semantics — v0.4 Phase 1 / Step 1
+
+Reporting derives one shared assessment from existing detection, environment,
+diagnoses and Evidence for both CLI and JSON. No new probes, diagnoses, repair
+authority or workflow stages are introduced. Findings, check coverage and
+project verification are separate: a successful version or startup probe is
+only evidence about that probe.
+
+The additive JSON `assessment` reports `issues_detected`, `inconclusive` or
+`no_issues_detected`, together with `incomplete`/`limited` coverage and explicit
+limitations linked to Evidence. Project verification is always `unverified`
+with current capabilities. Known findings take priority over incomplete checks;
+an ambiguous interpreter, unsupported check or startup timeout cannot become
+a positive health conclusion. Known pipeline failures are passed to both report
+formats as coverage limitations. CLI and assessment share one startup-success
+predicate: success status, confirmed execution and exit code 0. CLI presents
+this assessment and probe outcomes.
+
+Schema remains 0.2. Legacy `status`, diagnoses, capabilities and exit codes keep
+their previous semantics; `healthy` remains only a legacy findings summary.
+Consumers should use assessment when present and never infer verification from
+an old report without it. See [JSON contract](json-schema.md) for exact fields.
+Package version remains unchanged. Historical validation records are preserved.
+
 ## Current alpha startup boundary
 
 Metadata inspection and the default CLI remain READ ONLY. A separate, explicitly

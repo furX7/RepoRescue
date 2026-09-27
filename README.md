@@ -189,8 +189,12 @@ exist; an existing report is never overwritten. A write failure may leave a part
 JSON schema **`0.2`** is separate from package version `0.3.0a1`. Reports include
 project/environment details, structured Evidence, diagnoses, root cause chains,
 repair previews, and verification plans. See the [JSON contract](docs/json-schema.md).
-The `healthy` status means only that current limited checks found no issue; it is
-not a claim of overall project health. INFO alone does not indicate a project failure.
+The legacy `healthy` status means only that current limited checks found no issue.
+The additive `assessment` reports findings, incomplete/limited coverage and explicit
+limitations; CLI presents the same result. Default scans, ambiguous interpreters
+and startup timeouts are inconclusive. Even startup exit 0 leaves project
+verification `unverified`; it establishes only probe success. INFO alone does not
+indicate a project failure. Schema and existing status/exit-code meanings are retained.
 
 JSON can support automation and CI, and is designed to support future agent-native
 integrations. Agent integrations and MCP are **not implemented**; there is no current

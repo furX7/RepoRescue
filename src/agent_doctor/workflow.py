@@ -111,9 +111,13 @@ def run_workflow(
             elif execution.status in ("failed", "timeout"):
                 environment = replace(environment, python_callable=False)
 
-        report = build_json_report(project, detection, environment, diagnostics, evidence)
+        report = build_json_report(
+            project, detection, environment, diagnostics, evidence,
+            extension_failures=extension_result.failures,
+        )
         terminal = render_terminal_report(
             project, detection, environment, diagnostics, evidence=evidence,
+            extension_failures=extension_result.failures,
             requested_project_path=project_path,
         )
         saved_path = write_json_report(report, output_path)

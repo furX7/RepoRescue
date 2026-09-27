@@ -185,6 +185,13 @@ def _build_assessment(
         if item.kind == "python_requirement" and status not in ("compatible", "incompatible"):
             limit(item.kind, status, (item.evidence_id,))
 
+    for diagnosis in diagnostics:
+        for correlation in diagnosis.correlations:
+            if correlation.status != "correlated":
+                limit("correlation", correlation.status, correlation.evidence_refs)
+            for reason in correlation.limitations:
+                limit("correlation", reason, correlation.evidence_refs)
+
     if any(item.severity in ("ERROR", "CRITICAL", "WARNING") for item in diagnostics):
         outcome = "issues_detected"
     elif limitations:
@@ -405,11 +412,24 @@ def render_terminal_report(
                 lines.append(f"  Import symbol: {item.metadata['imported_symbol']}")
             lines.append(f"  Import evidence: {item.metadata['raw_message']}")
 
-    causes = [item for item in ordered if item.root_cause_chain]
+    causes = []
+    for diagnosis in ordered:
+        derived_ids = {step.id for item in diagnosis.correlations for step in item.root_cause_chain}
+        original_steps = tuple(step for step in diagnosis.root_cause_chain if step.id not in derived_ids)
+        if original_steps:
+            causes.append(original_steps)
     if causes:
         lines.extend(('', 'Root cause:'))
-        for diagnosis in causes:
-            lines.append('  ' + ' -> '.join(step.title for step in diagnosis.root_cause_chain))
+        for steps in causes:
+            lines.append('  ' + ' -> '.join(step.title for step in steps))
+    for diagnosis in ordered:
+        for correlation in diagnosis.correlations:
+            lines.append(f"  Correlation: {correlation.title}; {correlation.status}; rule confidence: {correlation.confidence}.")
+            lines.append("  Correlation evidence: " + ', '.join(correlation.evidence_refs))
+            for step in correlation.root_cause_chain:
+                lines.append(f"    {step.relationship}: {step.title}; evidence: {', '.join(step.evidence_refs)}.")
+            for reason in correlation.limitations:
+                lines.append("  Correlation limitation: " + reason)
     plans = [item.repair_plan for item in ordered if item.repair_plan is not None]
     if plans:
         lines.extend(('', 'Repair preview:'))

@@ -18,6 +18,7 @@ from .models import (
     CommandProposal, DetectionResult, DiagnosisResult, EnvironmentInfo, Evidence, ExecutionResult,
     ProjectInfo,
 )
+from .correlation import accept_enrichment, correlation_unavailable
 from .python_extension import PythonCoreExtension
 from .pack_registry import PackRegistry
 
@@ -32,6 +33,13 @@ class _DiagnosticCommandProvider(Protocol):
     def propose_diagnostic_commands(
         self, project: ProjectInfo, environment: EnvironmentInfo,
     ) -> Sequence[CommandProposal]: ...
+
+
+@runtime_checkable
+class _CorrelationProvider(Protocol):
+    """Optional data-only built-in hook; Extension API 1 remains unchanged."""
+
+    def correlate(self, diagnoses: Sequence[DiagnosisResult], evidence: Sequence[Evidence]) -> Sequence[DiagnosisResult]: ...
 
 
 @dataclass(frozen=True)
@@ -133,6 +141,17 @@ def _invoke_stage(
         diagnoses, evidence = cast(DiagnosisRule, extension).diagnose(
             project, run.detection, environment, (*run.evidence, *core_evidence), executions,
         )
+        if isinstance(extension, _CorrelationProvider):
+            completed = tuple(diagnoses)
+            try:
+                diagnoses = accept_enrichment(completed,
+                                              tuple(extension.correlate(completed, tuple(evidence))),
+                                              tuple(evidence))
+            except (ExtensionUnavailable, ExtensionIncompatible, ExtensionFailure) as error:
+                reason = ('provider_unavailable' if isinstance(error, ExtensionUnavailable)
+                          else 'provider_incompatible' if isinstance(error, ExtensionIncompatible)
+                          else 'provider_failure')
+                diagnoses = correlation_unavailable(completed, tuple(evidence), reason)
         # The existing dual-return contract supplies the complete evidence batch
         # for this extension, not a delta to concatenate with its collection.
         return replace(run, diagnoses=tuple(diagnoses), evidence=tuple(evidence))

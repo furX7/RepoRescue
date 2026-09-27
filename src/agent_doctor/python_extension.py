@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 
+from .python_correlation import correlate_python
 from .diagnosis import diagnose
 from .compatibility_evidence import collect_compatibility_evidence
 from .python_evidence import interpreter_evidence, collect_import_evidence
@@ -74,6 +75,10 @@ class PythonCoreExtension:
         observations.extend(finalize([*provenance, *installed_provenance(observations, names)]))
         observations.extend(collect_compatibility_evidence(observations))
         return diagnoses, observations
+
+    def correlate(self, diagnoses, evidence):
+        """Optional built-in data-only adapter invoked by Core after diagnosis."""
+        return correlate_python(diagnoses, evidence)
 
     def propose_diagnostic_commands(
         self, project: ProjectInfo, environment: EnvironmentInfo,

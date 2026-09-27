@@ -440,6 +440,7 @@ def diagnose(
         evidence.append(Evidence(
             evidence_id=reference, kind="execution", source="executor",
             associated_id=reference, location=str(execution.command.working_directory),
+            metadata={"executable": execution.command.executable, "arguments": execution.command.arguments},
             summary=(f"status={execution.status}; exit_code={execution.exit_code}; "
                      f"timed_out={execution.timed_out}; "
                      f"duration_seconds={execution.duration_seconds}; "

@@ -484,3 +484,59 @@ issues_detected. Shared terminal escaping and JSON serialization remain intact.
 Specification references: [PyPA wheel format](https://packaging.python.org/en/latest/specifications/binary-distribution-format/),
 [PyPA compatibility tags](https://packaging.python.org/en/latest/specifications/platform-compatibility-tags/),
 [CPython debug builds](https://docs.python.org/3/using/configure.html#python-debug-build).
+
+
+## Step 6: additive correlation contract (schema 0.2)
+
+DiagnosisResult gains optional `correlations` (default empty). Each result has
+`id`, `diagnosis_type`, `title`, `explanation`, discrete `confidence`,
+`evidence_refs`, `root_cause_chain`, `status`, and `limitations`. RootCauseStep
+retains all prior fields and adds optional `parent_id` (default null) and
+`relationship` (`observed`, `supports`, `context`; default observed). Existing
+diagnosis confidence/severity/plans and fields retain their meaning.
+Correlation observations are derived Diagnosis content, never new raw Evidence.
+
+Core requires every correlation and step ref to identify one unique existing
+Evidence ID. Duplicate IDs are excluded, including identical duplicate payloads.
+Steps have distinct IDs, each parent must be the preceding step of that local
+chain, and references must be included in the containing correlation. Thus no
+cycles, forward/dangling refs or duplicated appended steps can pass acceptance.
+Original diagnosis refs must be contained in each accepted correlation. Core
+checks optional hook output against validated enrichment, rejecting removal or
+replacement of existing findings, confidence/severity changes and new repairs.
+
+Results/refs are sorted by stable IDs; evidence or proposal order does not rank
+candidates. Duplicate proposals are rejected; multiple origins/mappings/runtime
+facts are ambiguous. Multiple distribution candidates are never selected.
+Conflicting values within a provenance category are ambiguous; differences
+between declared/locked/resolved/installed categories alone are context, never
+a fault. Unavailable provenance remains inconclusive and all source refs are kept.
+
+Confidence is a rule support indicator, not probability: `medium` means all
+premises for a bounded observation/context relationship are present; `low` means
+insufficient or conflicting premises. No current rule emits `high` or `correlated`
+because Steps 1–5 do not prove environment intention, runtime symbol absence or
+native binary ABI causation. `partial`, `inconclusive` and `ambiguous` plus explicit
+limitations are first-class output. Existing ERROR findings remain issues_detected.
+Historical installation logs plus related artifact observations yield INFO context,
+not an ERROR or requires-python diagnosis; no artifact observations keeps Step 2
+facts-only behavior. Observed wheel exclusions refer only to that finite set and
+the current interpreter, not all available artifacts or the log's runtime.
+
+Bounds: 8192 Evidence records, 256 diagnoses, 8 accepted correlations per diagnosis,
+16 steps per correlation, 1024 characters per indexed Evidence ID, 4096 characters
+per lexical path or classified install message, and 128 classified install
+messages. Exceeded input budgets preserve original findings without correlation.
+No additional source scan occurs. Lexical paths reject relative paths, parent
+traversal and controls; symlink identity/loaded-module membership remain unproven.
+Terminal output labels relationships/status/limitations and renders each derived
+step separately; JSON carries the same chain and refs. No schema/version/exit-code
+bump, new CLI flag, repair executor or later Phase capability is introduced.
+
+
+Declared optional-correlation provider failure/unavailability/incompatibility
+preserves the completed diagnosis/evidence batch and records a low/inconclusive
+correlation limitation; provider exception text is not exposed. Unexpected
+exception policy remains unchanged. More than 128 classified install messages or any non-string/oversized
+classified message (over 4096 characters) preserves Step 2 log facts without adding artifact correlation, rather than
+silently selecting a prefix that could hide conflicting evidence.

@@ -330,3 +330,12 @@ unknown/unavailable/ambiguous。支持的格式与资源边界见
 tag 匹配或看到定义都不能证明运行时/API 兼容性；未知格式和判断保持显式限制。
 不生成升级/降级决策，也不关联跨证据根因。支持范围与限额见
 [JSON 契约](docs/json-schema.md)。
+
+
+### Step 6 跨 Evidence 关联上下文
+
+报告将已有导入/启动观察与解释器、模块来源、原生 artifact 标签、静态 API、
+用户日志中的 artifact 和版本来源关联。每一步引用真实 Evidence；缺失或冲突
+证据返回 partial/inconclusive/ambiguous。静态源码与 wheel 标签不能证明运行时
+API/ABI 根因。关联层不执行新探测或修复，schema 0.2 与退出码保持兼容。
+详见 docs/json-schema.md。

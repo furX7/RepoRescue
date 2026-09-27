@@ -120,10 +120,37 @@ class RootCauseStep:
     title: str
     explanation: str
     evidence_refs: tuple[str, ...]
+    parent_id: str | None = None
+    relationship: Literal["observed", "supports", "context"] = "observed"
 
     def __post_init__(self) -> None:
+        if self.relationship not in ("observed", "supports", "context"):
+            raise ValueError("Invalid root cause relationship")
         if not self.evidence_refs:
             raise ValueError("Root cause steps must reference evidence")
+
+
+@dataclass(frozen=True)
+class CorrelationResult:
+    """Rule-supported association, explicitly separate from raw Evidence."""
+
+    id: str
+    diagnosis_type: str
+    title: str
+    explanation: str
+    confidence: Literal["low", "medium", "high"]
+    evidence_refs: tuple[str, ...]
+    root_cause_chain: tuple[RootCauseStep, ...] = ()
+    status: Literal["correlated", "partial", "ambiguous", "inconclusive"] = "inconclusive"
+    limitations: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.confidence not in ("low", "medium", "high"):
+            raise ValueError("Invalid correlation confidence")
+        if self.status not in ("correlated", "partial", "ambiguous", "inconclusive"):
+            raise ValueError("Invalid correlation status")
+        if not self.evidence_refs:
+            raise ValueError("Correlations must reference evidence")
 
 
 @dataclass(frozen=True)
@@ -189,6 +216,7 @@ class DiagnosisResult:
     diagnosis_id: str = ""
     root_cause_chain: tuple[RootCauseStep, ...] = ()
     repair_plan: RepairPlan | None = None
+    correlations: tuple[CorrelationResult, ...] = ()
 
     def __post_init__(self) -> None:
         if self.severity not in ("INFO", "WARNING", "ERROR", "CRITICAL"):

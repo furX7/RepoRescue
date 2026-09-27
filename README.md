@@ -421,3 +421,13 @@ syntax, without importing or running it. Matching tags or seeing a definition
 does not prove runtime/API compatibility. Unknown formats and checks remain
 visible limitations; no upgrade/downgrade decision or root-cause correlation is
 added. See the [JSON contract](docs/json-schema.md) for supported cases and limits.
+
+
+### Step 6 cross-evidence context
+
+Reports now link existing import/startup observations to interpreter/module,
+native artifact tags, static API, supplied-log artifact and version-source
+context. Every derived step references existing Evidence. Partial/ambiguous
+results explain missing premises; static syntax and wheel tags do not prove
+runtime API/ABI root causes. Correlation executes no new probe or repair.
+Schema 0.2 and existing exit codes remain unchanged; see docs/json-schema.md.

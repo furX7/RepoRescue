@@ -671,4 +671,30 @@ tag check is explicitly distinct from runtime/API compatibility, which remains
 unknown. API reads are AST-only and gated by explicit symbol failures; WHEEL reads
 are gated by selected distributions; no target triggers no new collection.
 Source/path/ref, limitations, bounded collection and assessment are described in
-json-schema.md. Step 6 cross-evidence correlation is not implemented.
+json-schema.md. Step 6 consumes these facts through the separate correlation layer below.
+
+
+## v0.4 Phase 1 / Step 6: Cross-evidence correlation
+
+Core invokes an optional built-in data-only correlation hook after DIAGNOSE and
+before existing repair-preview stages. Extension API 1 and its required protocols
+are unchanged. Python-specific rules live in python_correlation; correlation.py
+owns the language-independent proposal/ref/chain validation and acceptance guard.
+The guard preserves existing diagnoses, severity, numeric confidence, plans and
+actions. New supplied-log context is INFO only, preserving existing exit codes.
+The layer reads only supplied Evidence: no command, file, finder, code import,
+network request, resolver, repair execution or new startup entrypoint.
+
+Supported patterns are interpreter/module environment context; native-looking
+module plus installed WHEEL eligibility context; symbol import plus unique
+distribution/static API context; same-log artifact availability context; and
+separate dependency provenance context. Startup is linked only when its confirmed
+failed observation has exactly the same command and cwd as the import execution.
+Historical logs never establish the current interpreter as their runtime.
+
+All current rules remain partial/inconclusive or ambiguous: detected project
+environment intention, runtime exports and native binary ABI compatibility are
+not established by Steps 1–5. Missing direct syntax is not missing runtime API;
+unavailable API evidence is a collection limitation. Metadata tag mismatch is
+not binary ABI incompatibility. Do not market these context chains as proved
+runtime root causes. Verified cause rules require future independent facts.

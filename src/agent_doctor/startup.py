@@ -82,6 +82,7 @@ def collect_startup_evidence(
         'stderr_excerpt': execution.stderr[:STARTUP_EXCERPT_LIMIT_CHARS],
         'terminated': execution.terminated,
         'timed_out': execution.timed_out,
+        'capture_timed_out': execution.capture_timed_out,
         'executed': execution.status in ('success', 'timeout') or (
             execution.status == 'failed' and execution.exit_code is not None
         ),

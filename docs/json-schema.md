@@ -162,13 +162,19 @@ run-local ID `project:startup_probe`. Additive metadata includes:
   rejected / success / failed / timeout.
 - exit_code: integer or null; duration_ms: number or null before an attempt.
 - stdout_excerpt, stderr_excerpt: at most 4096 characters each.
-- timed_out, terminated, executed, stdout_truncated, stderr_truncated: booleans
+- timed_out, capture_timed_out, terminated, executed, stdout_truncated, stderr_truncated: booleans
   where an executor outcome is available. executed records known launch, not side-effect absence.
 
 Startup stdout/stderr each retain at most 64 KiB of bytes before UTF-8 decoding;
 excess is continuously drained and discarded. Truncated flags are true when bytes
 or excerpt characters were omitted, or pipe collection could not finish. They do
-not change execution_status or establish a startup failure. Schema stays 0.2.
+not change execution_status or establish a startup failure. `timed_out` means the direct
+child exceeded its observation window. `capture_timed_out` means output collection
+exceeded its separate one-second deadline; it preserves a known exit_code and records
+an assessment limitation (`check: startup_capture`, `reason: timeout`). Known nonzero
+exit remains an ERROR / issues_detected; exit 0 with incomplete capture is inconclusive.
+Both flags may be true for a process timeout followed by capture timeout. The caller
+closes its pipe handles before returning without supervising descendants. Schema stays 0.2.
 
 No supported entrypoint and requires_confirmation are not project errors. Nonzero
 exit is an ERROR startup symptom, timeout is INFO and not verified success, and

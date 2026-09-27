@@ -53,10 +53,13 @@ Evidence and reuses independent import rules. Reports only present outcomes.
 The observation window defaults to 5 seconds and cannot exceed 5. Timeout is an INFO
 observation, not proof of failure or readiness. Only the direct child is killed and
 waited for; up to one second each is allowed for termination and output cleanup.
-Unconfirmed termination is explicitly recorded. Descendants and their inherited pipes
-are not supervised and may leave background output readers. Two local threads continuously
-drain startup stdout/stderr in fixed 8 KiB reads, retaining at most 64 KiB per stream
-and discarding excess. Excerpts are capped at 4096 characters; truncation does not
+Unconfirmed termination is explicitly recorded. Descendants are not supervised or killed.
+The caller drains both nonblocking raw pipes in fair 8 KiB reads, retaining at most
+64 KiB per stream and discarding excess. After direct-child exit (or a bounded
+termination attempt), output collection has a separate one-second deadline. A known
+exit code remains success/failed even if inherited pipes exceed this deadline;
+`capture_timed_out` records incomplete capture independently of direct-child `timed_out`.
+The caller closes both read handles before returning; no reader threads are created. Excerpts are capped at 4096 characters; truncation does not
 change execution status. Concurrent path replacement remains a limitation. No sandbox,
 service manager, framework detector, repair executor, or new dependency is added.
 

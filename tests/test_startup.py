@@ -187,12 +187,13 @@ class StartupTests(unittest.TestCase):
         process = MagicMock()
         process.stdout = io.BytesIO(b'partial')
         process.stderr = io.BytesIO(b'error')
-        process.wait.side_effect = [subprocess.TimeoutExpired([], 0.1), None]
-        process.poll.return_value = -9
-        with patch('subprocess.Popen', return_value=process) as popen:
+        process.stdout.fileno = lambda: 0
+        process.stderr.fileno = lambda: 1
+        process.poll.side_effect = lambda: -9 if process.kill.called else None
+        with patch('subprocess.Popen', return_value=process) as popen, patch('os.set_blocking'):
             result = execute_startup_probe(command, self.root, confirmed=True, timeout=0.1)
         process.kill.assert_called_once()
-        self.assertEqual(process.wait.call_count, 2)
+        process.wait.assert_called_once()
         self.assertEqual(process.wait.call_args.kwargs['timeout'], 1.0)
         self.assertIs(popen.call_args.kwargs['shell'], False)
         self.assertEqual(popen.call_args.kwargs['stdin'], subprocess.DEVNULL)
@@ -327,25 +328,34 @@ class StartupTests(unittest.TestCase):
         process.stdout = io.BytesIO(b'')
         process.stderr = io.BytesIO(b'')
         process.poll.return_value = -9
-        reader = MagicMock()
-        reader.is_alive.return_value = True
-        with patch('subprocess.Popen', return_value=process), patch('agent_doctor.commands.Thread', return_value=reader):
+        process.returncode = -9
+        process.stdout = MagicMock()
+        process.stderr = MagicMock()
+        process.stdout.read.return_value = None
+        process.stderr.read.return_value = None
+        with patch('subprocess.Popen', return_value=process), patch('os.set_blocking'):
             result = execute_startup_probe(command, self.root, confirmed=True, timeout=0.1)
-        self.assertTrue(all(call.args[0] <= 1.0 for call in reader.join.call_args_list))
+        self.assertLess(result.duration_seconds, 2.0)
         self.assertTrue(result.stdout_truncated)
         self.assertTrue(result.stderr_truncated)
-        self.assertTrue(result.terminated)
-        self.assertFalse(process.stdout.closed)
+        self.assertEqual(result.exit_code, -9)
+        self.assertFalse(result.timed_out)
+        self.assertTrue(result.capture_timed_out)
+        process.kill.assert_not_called()
+        process.stdout.close.assert_called_once()
+        process.stderr.close.assert_called_once()
 
     def test_termination_failure_is_not_reported_as_terminated(self):
         command, _, _, _ = self.proposal()
         process = MagicMock()
         process.stdout = io.BytesIO(b'')
         process.stderr = io.BytesIO(b'')
+        process.stdout.fileno = lambda: 0
+        process.stderr.fileno = lambda: 1
         process.wait.side_effect = subprocess.TimeoutExpired([], 0.1)
         process.kill.side_effect = PermissionError('denied')
         process.poll.return_value = None
-        with patch('subprocess.Popen', return_value=process):
+        with patch('subprocess.Popen', return_value=process), patch('os.set_blocking'):
             result = execute_startup_probe(command, self.root, confirmed=True, timeout=0.1)
         self.assertEqual(result.status, 'timeout')
         self.assertFalse(result.terminated)

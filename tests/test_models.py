@@ -81,6 +81,17 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 1)
         self.assertFalse(result.timed_out)
 
+    def test_capture_timeout_is_additive_and_preserves_positional_contract(self) -> None:
+        legacy = ExecutionResult(self.command, 7, "out", "err", .1,
+                                 False, False, False, False, "failed", "message")
+        self.assertFalse(legacy.capture_timed_out)
+        self.assertEqual(legacy.status, "failed")
+        self.assertEqual(legacy.message, "message")
+        limited = replace(legacy, capture_timed_out=True)
+        self.assertEqual(limited.exit_code, 7)
+        self.assertFalse(limited.timed_out)
+        self.assertEqual(limited.status, "failed")
+
     def test_timeout_does_not_imply_confirmed_termination(self) -> None:
         result = ExecutionResult(
             self.command, None, "partial", "", 10.0,

@@ -9,10 +9,9 @@ No installation or repair is allowed.
 import subprocess
 import sys
 import os
-from threading import Event, Lock, Thread
 from math import isfinite
 from pathlib import Path
-from time import perf_counter
+from time import perf_counter, sleep
 
 from .models import CommandProposal, ExecutionResult
 from .startup import (
@@ -23,6 +22,7 @@ from .startup import (
 
 OUTPUT_LIMIT = 4096
 MAX_TIMEOUT_SECONDS = 30.0
+_STARTUP_CAPTURE_TIMEOUT_SECONDS = 1.0
 
 
 def _output_text(value: str | bytes | None) -> str:
@@ -124,13 +124,13 @@ def execute_startup_probe(
     started = perf_counter()
 
     def result(status, message='', *, code=None, out='', err='', timed_out=False, terminated=False,
-               out_truncated=False, err_truncated=False):
+               out_truncated=False, err_truncated=False, capture_timed_out=False):
         stdout, stderr = _output_text(out), _output_text(err)
         return ExecutionResult(
             command=command, exit_code=code,
             stdout=stdout[:STARTUP_EXCERPT_LIMIT_CHARS], stderr=stderr[:STARTUP_EXCERPT_LIMIT_CHARS],
             duration_seconds=perf_counter() - started, status=status, message=message,
-            timed_out=timed_out, terminated=terminated,
+            timed_out=timed_out, terminated=terminated, capture_timed_out=capture_timed_out,
             stdout_truncated=out_truncated or len(stdout) > STARTUP_EXCERPT_LIMIT_CHARS,
             stderr_truncated=err_truncated or len(stderr) > STARTUP_EXCERPT_LIMIT_CHARS,
         )
@@ -171,93 +171,125 @@ def execute_startup_probe(
         return result('timeout', message, out=error.output, err=error.stderr,
                       timed_out=True, terminated=terminated,
                       out_truncated=getattr(error, 'stdout_truncated', False),
-                      err_truncated=getattr(error, 'stderr_truncated', False))
+                      err_truncated=getattr(error, 'stderr_truncated', False),
+                      capture_timed_out=getattr(error, 'capture_timed_out', False))
     except OSError as error:
         return result('failed', f'Could not launch or complete startup probe: {error}')
     return result('success' if completed.returncode == 0 else 'failed',
                   code=completed.returncode, out=completed.stdout, err=completed.stderr,
                   out_truncated=getattr(completed, 'stdout_truncated', False),
-                  err_truncated=getattr(completed, 'stderr_truncated', False))
+                  err_truncated=getattr(completed, 'stderr_truncated', False),
+                  capture_timed_out=getattr(completed, 'capture_timed_out', False))
 
 
 class _StartupCapture:
-    """Bounded bytes retained by one pipe reader, with thread-safe snapshots."""
+    """Bounded prefix collected by the caller from a nonblocking raw pipe."""
 
     def __init__(self):
         self.data = bytearray()
         self.truncated = False
-        self.lock = Lock()
+        self.complete = False
 
-    def drain(self, stream, stop):
+    def read(self, stream):
+        """Read at most one chunk so neither stream nor the deadline can starve."""
+        if self.complete:
+            return False
         try:
-            while not stop.is_set():
-                chunk = stream.read(8192)
-                if not chunk:
-                    break
-                with self.lock:
-                    remaining = STARTUP_CAPTURE_LIMIT_BYTES - len(self.data)
-                    self.data.extend(chunk[:remaining])
-                    self.truncated |= len(chunk) > remaining
+            chunk = stream.read(8192)
+        except BlockingIOError:
+            return False
         except OSError:
-            with self.lock:
-                self.truncated = True
-        finally:
-            stream.close()
+            self.truncated = True
+            self.complete = True
+            return False
+        if chunk is None:
+            return False
+        if not chunk:
+            self.complete = True
+            return False
+        remaining = STARTUP_CAPTURE_LIMIT_BYTES - len(self.data)
+        self.data.extend(chunk[:remaining])
+        self.truncated |= len(chunk) > remaining
+        return True
 
     def snapshot(self):
-        with self.lock:
-            text = self.data.decode('utf-8', errors='replace')
-            return text.replace('\r\n', '\n').replace('\r', '\n'), self.truncated
+        text = self.data.decode('utf-8', errors='replace')
+        return text.replace('\r\n', '\n').replace('\r', '\n'), self.truncated
 
 
 def _run_startup_process(argv, *, cwd, env, timeout):
-    """Drain both streams concurrently, retaining a fixed prefix of each.
+    """Observe the direct child separately from bounded output collection.
 
-    Direct-child wait and pipe cleanup remain bounded. Descendants retaining a
-    pipe can leave a daemon reader blocked until it closes or next emits output;
-    retained data and per-read buffers still remain bounded.
+    Python 3.12+ supports nonblocking pipes on Windows. No background readers
+    remain after return. Descendants are not terminated or supervised; their
+    inherited write handles can cause capture timeout without process timeout.
     """
     process = subprocess.Popen(
         argv, cwd=cwd, env=env, shell=False, stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0,
     )
-    stop = Event()
+    streams = (process.stdout, process.stderr)
     captures = (_StartupCapture(), _StartupCapture())
-    readers = [Thread(target=capture.drain, args=(stream, stop), daemon=True)
-               for capture, stream in zip(captures, (process.stdout, process.stderr))]
-    deadline = perf_counter() + timeout
-    for reader in readers:
-        reader.start()
-
-    def join_until(deadline):
-        for reader in readers:
-            reader.join(max(0.0, deadline - perf_counter()))
-
+    process_deadline = perf_counter() + timeout
+    capture_deadline = None
+    timed_out = False
+    terminated = False
+    capture_timed_out = False
     try:
-        try:
-            process.wait(timeout=max(0.0, deadline - perf_counter()))
-            join_until(deadline)
-            if any(reader.is_alive() for reader in readers):
-                raise subprocess.TimeoutExpired(argv, timeout)
-        except subprocess.TimeoutExpired as error:
+        for stream in streams:
+            os.set_blocking(stream.fileno(), False)
+        while True:
+            progressed = False
+            for capture, stream in zip(captures, streams):
+                progressed |= capture.read(stream)
+            code = process.poll()
+            now = perf_counter()
+            if code is not None and capture_deadline is None:
+                capture_deadline = now + _STARTUP_CAPTURE_TIMEOUT_SECONDS
+            elif code is None and capture_deadline is None and now >= process_deadline:
+                # Only an observed running direct child incurs process timeout.
+                timed_out = True
+                try:
+                    process.kill()
+                    process.wait(timeout=1.0)
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+                terminated = process.poll() is not None
+                capture_deadline = perf_counter() + _STARTUP_CAPTURE_TIMEOUT_SECONDS
+            if (code is not None or timed_out) and all(c.complete for c in captures):
+                break
+            if capture_deadline is not None and perf_counter() >= capture_deadline:
+                capture_timed_out = any(not c.complete for c in captures)
+                for capture in captures:
+                    capture.truncated |= not capture.complete
+                break
+            if not progressed:
+                sleep(0.005)
+    except BaseException:
+        # Failed nonblocking setup or interrupted collection must release the
+        # direct child as well as caller-owned handles, with the same finite wait.
+        if process.poll() is None:
             try:
                 process.kill()
                 process.wait(timeout=1.0)
             except (OSError, subprocess.TimeoutExpired):
                 pass
-            error.terminated = process.poll() is not None
-            join_until(perf_counter() + 1.0)
-            error.output, error.stdout_truncated = captures[0].snapshot()
-            error.stderr, error.stderr_truncated = captures[1].snapshot()
-            error.stdout_truncated |= readers[0].is_alive()
-            error.stderr_truncated |= readers[1].is_alive()
-            raise error
-        out, out_truncated = captures[0].snapshot()
-        err, err_truncated = captures[1].snapshot()
-        completed = subprocess.CompletedProcess(argv, process.returncode, out, err)
-        completed.stdout_truncated = out_truncated
-        completed.stderr_truncated = err_truncated
-        return completed
+        raise
     finally:
-        # Readers own their pipe handles; closing a blocked pipe here can block.
-        stop.set()
+        for stream in streams:
+            stream.close()
+
+    out, out_truncated = captures[0].snapshot()
+    err, err_truncated = captures[1].snapshot()
+    if timed_out:
+        error = subprocess.TimeoutExpired(argv, timeout, output=out, stderr=err)
+        error.terminated = terminated
+        error.stdout_truncated = out_truncated
+        error.stderr_truncated = err_truncated
+        error.capture_timed_out = capture_timed_out
+        raise error
+    completed = subprocess.CompletedProcess(argv, code, out, err)
+    completed.stdout_truncated = out_truncated
+    completed.stderr_truncated = err_truncated
+    completed.capture_timed_out = capture_timed_out
+    return completed

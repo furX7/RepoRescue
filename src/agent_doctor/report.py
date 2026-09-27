@@ -159,6 +159,9 @@ def _build_assessment(
         reason = startup_status if startup_status not in ("success", "failed") else "outcome_not_confirmed"
         limit("startup_probe", reason, (startup.evidence_id,))
 
+    if startup and startup.metadata.get("capture_timed_out") is True:
+        limit("startup_capture", "timeout", (startup.evidence_id,))
+
     for item in evidence:
         status = item.metadata.get("status", "not_observed")
         if item.kind == "provided_log":
@@ -472,6 +475,8 @@ def render_terminal_report(
                         )
                         if not import_already_shown:
                             lines.append('Startup stderr excerpt: ' + excerpt[:512])
+                    if item.metadata.get('capture_timed_out') is True:
+                        lines.append('Startup output capture timed out; captured output is incomplete.')
                     if _startup_succeeded(item):
                         lines.append('Startup probe completed successfully.')
                     elif status == 'success':

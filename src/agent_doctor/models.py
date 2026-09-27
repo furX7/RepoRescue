@@ -72,6 +72,8 @@ class ExecutionResult:
     """Captured process outcome; None means no exit code was available.
 
     terminated records confirmed termination, not merely a termination attempt.
+    timed_out concerns the direct child; capture_timed_out concerns pipe collection
+    and does not replace a known exit code or imply a process timeout.
     Output size limits and masking must be enforced by the future executor.
     """
 
@@ -86,6 +88,7 @@ class ExecutionResult:
     stderr_truncated: bool = False
     status: Literal["success", "rejected", "requires_confirmation", "timeout", "failed"] = "success"
     message: str = ""
+    capture_timed_out: bool = False
 
     def __post_init__(self) -> None:
         if self.status not in ("success", "rejected", "requires_confirmation", "timeout", "failed"):

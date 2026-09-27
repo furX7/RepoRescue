@@ -6,7 +6,6 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from threading import Event
 
 from agent_doctor.commands import _StartupCapture, _run_startup_process, execute_startup_probe
 from agent_doctor.diagnosis import diagnose
@@ -16,6 +15,11 @@ from agent_doctor.startup import (
     STARTUP_CAPTURE_LIMIT_BYTES, STARTUP_EXCERPT_LIMIT_CHARS,
     collect_startup_evidence, propose_startup_probe,
 )
+
+
+def drain(capture, stream):
+    while not capture.complete:
+        capture.read(stream)
 
 
 class StartupCaptureTests(unittest.TestCase):
@@ -78,20 +82,20 @@ class StartupCaptureTests(unittest.TestCase):
 
     def test_capture_byte_buffer_never_exceeds_limit(self):
         capture = _StartupCapture()
-        capture.drain(io.BytesIO(b'x' * (STARTUP_CAPTURE_LIMIT_BYTES * 20)), Event())
+        drain(capture, io.BytesIO(b'x' * (STARTUP_CAPTURE_LIMIT_BYTES * 20)))
         self.assertEqual(len(capture.data), STARTUP_CAPTURE_LIMIT_BYTES)
         self.assertTrue(capture.truncated)
         self.assertEqual(len(capture.snapshot()[0]), STARTUP_CAPTURE_LIMIT_BYTES)
 
     def test_exact_byte_limit_is_not_truncated(self):
         capture = _StartupCapture()
-        capture.drain(io.BytesIO(b'x' * STARTUP_CAPTURE_LIMIT_BYTES), Event())
+        drain(capture, io.BytesIO(b'x' * STARTUP_CAPTURE_LIMIT_BYTES))
         self.assertEqual(len(capture.data), STARTUP_CAPTURE_LIMIT_BYTES)
         self.assertFalse(capture.truncated)
 
     def test_utf8_split_at_byte_limit_is_decoded_safely(self):
         capture = _StartupCapture()
-        capture.drain(io.BytesIO(('中' * STARTUP_CAPTURE_LIMIT_BYTES).encode('utf-8')), Event())
+        drain(capture, io.BytesIO(('中' * STARTUP_CAPTURE_LIMIT_BYTES).encode('utf-8')))
         text, truncated = capture.snapshot()
         self.assertEqual(len(capture.data), STARTUP_CAPTURE_LIMIT_BYTES)
         self.assertTrue(truncated)
@@ -99,7 +103,7 @@ class StartupCaptureTests(unittest.TestCase):
 
     def test_universal_newlines_are_preserved(self):
         capture = _StartupCapture()
-        capture.drain(io.BytesIO(b'one\r\ntwo\rthree\n'), Event())
+        drain(capture, io.BytesIO(b'one\r\ntwo\rthree\n'))
         self.assertEqual(capture.snapshot(), ('one\ntwo\nthree\n', False))
 
     def test_capture_truncation_survives_short_decoded_excerpt(self):

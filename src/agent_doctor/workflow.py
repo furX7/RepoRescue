@@ -15,6 +15,7 @@ from .models import (
     DetectionResult, DiagnosisResult, EnvironmentInfo, Evidence,
     ExecutionResult, ProjectInfo,
 )
+from .log_input import read_log
 from .project import inspect_environment, scan_project
 from .report import build_json_report, render_terminal_report, write_json_report
 from .startup import collect_startup_evidence, propose_startup_probe
@@ -63,6 +64,8 @@ class WorkflowResult:
 def run_workflow(
     project_path: str | Path, output_path: str | Path | None = None,
     *, confirm_startup: bool = False,
+    traceback_file: str | Path | None = None,
+    install_log: str | Path | None = None,
 ) -> WorkflowResult:
     """Diagnose once; write a report only when the caller supplies a path.
 
@@ -71,6 +74,14 @@ def run_workflow(
     The CLI's --run-startup-probe flag supplies this explicit confirmation.
     """
     try:
+        if traceback_file is not None and install_log is not None:
+            raise ValueError("Choose either traceback_file or install_log")
+        provided_logs = ()
+        if traceback_file is not None or install_log is not None:
+            provided_logs = (read_log(
+                traceback_file if traceback_file is not None else install_log,
+                "traceback" if traceback_file is not None else "install_log",
+            ),)
         project = scan_project(project_path)
         inspected_environment = inspect_environment(project)
         extension_environment = ExtensionEnvironment(
@@ -93,7 +104,7 @@ def run_workflow(
             executions += (startup_execution,)
         runs = run_extension_stage(
             runs, Capability.DIAGNOSE, project, inspected_environment,
-            executions=executions, core_evidence=(startup_observation,),
+            executions=executions, core_evidence=(startup_observation, *provided_logs),
         )
         _require_diagnosis_extension(runs)
         runs = run_extension_stage(runs, Capability.PLAN_REPAIR, project, inspected_environment)

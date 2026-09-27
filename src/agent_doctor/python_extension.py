@@ -53,8 +53,7 @@ class PythonCoreExtension:
         environment: EnvironmentInfo, evidence: Sequence[Evidence],
         executions: Sequence[ExecutionResult] = (),
     ) -> tuple[Sequence[DiagnosisResult], Sequence[Evidence]]:
-        # These are the three existing optional observation inputs. General
-        # evidence processing remains each future pack's responsibility.
+        # Python-specific rules consume supplied observations as data only.
         def observation(kind: str) -> Evidence | None:
             return next((item for item in evidence if item.kind == kind), None)
 
@@ -63,6 +62,7 @@ class PythonCoreExtension:
             python_requirement=observation("python_requirement"),
             local_environment=observation("local_python_environment"),
             startup_probe=observation("startup_probe"),
+            provided_logs=tuple(item for item in evidence if item.kind in ("provided_log", "ingestion_limitation")),
         )
 
     def propose_diagnostic_commands(

@@ -7,6 +7,7 @@ already captured output. Evidence IDs are local to a single diagnosis call.
 """
 
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 import re
 
@@ -22,6 +23,7 @@ from .models import (
     RootCauseStep,
     VerificationStep,
 )
+from .log_input import extract_install_facts, ingestion_limitation
 
 
 _MODULE_NAME = r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*"
@@ -34,6 +36,42 @@ _SYMBOL_IMPORT_FAILURE = re.compile(
     r"(?: \([^\r\n]*\))?"
     r"(?:\. Did you mean: (?P<hint_quote>['\"])[^'\"\r\n]+(?P=hint_quote)\?)?$"
 )
+
+
+def parse_import_failure(output: str, stream_name: str) -> dict | None:
+    """Parse the last supported exception line as data, without executing it."""
+    matches: list[tuple[str, re.Match[str]]] = []
+    for line in output.splitlines():
+        raw_message = line.strip()
+        match = _MODULE_NOT_FOUND.fullmatch(raw_message)
+        if match is not None:
+            matches.append((raw_message, match))
+            continue
+        match = _SYMBOL_IMPORT_FAILURE.fullmatch(raw_message)
+        if match is not None:
+            matches.append((raw_message, match))
+    if not matches:
+        return None
+
+    raw_message, match = matches[-1]
+    if raw_message.startswith("ModuleNotFoundError:"):
+        metadata = {
+            "exception_type": "ModuleNotFoundError",
+            "missing_module": match.group("module"),
+            "source_stream": stream_name,
+            "raw_message": raw_message,
+            "status": "missing_module",
+        }
+    else:
+        metadata = {
+            "exception_type": "ImportError",
+            "imported_symbol": match.group("symbol"),
+            "source_module": match.group("module"),
+            "source_stream": stream_name,
+            "raw_message": raw_message,
+            "status": "symbol_import_failure",
+        }
+    return metadata
 
 
 def analyze_import_failure(execution: ExecutionResult, index: int) -> Evidence | None:
@@ -53,37 +91,10 @@ def analyze_import_failure(execution: ExecutionResult, index: int) -> Evidence |
         return None
 
     for stream_name, output in (("stderr", execution.stderr), ("stdout", execution.stdout)):
-        matches: list[tuple[str, re.Match[str]]] = []
-        for line in output.splitlines():
-            raw_message = line.strip()
-            match = _MODULE_NOT_FOUND.fullmatch(raw_message)
-            if match is not None:
-                matches.append((raw_message, match))
-                continue
-            match = _SYMBOL_IMPORT_FAILURE.fullmatch(raw_message)
-            if match is not None:
-                matches.append((raw_message, match))
-        if not matches:
+        metadata = parse_import_failure(output, stream_name)
+        if metadata is None:
             continue
-
-        raw_message, match = matches[-1]
-        if raw_message.startswith("ModuleNotFoundError:"):
-            metadata = {
-                "exception_type": "ModuleNotFoundError",
-                "missing_module": match.group("module"),
-                "source_stream": stream_name,
-                "raw_message": raw_message,
-                "status": "missing_module",
-            }
-        else:
-            metadata = {
-                "exception_type": "ImportError",
-                "imported_symbol": match.group("symbol"),
-                "source_module": match.group("module"),
-                "source_stream": stream_name,
-                "raw_message": raw_message,
-                "status": "symbol_import_failure",
-            }
+        raw_message = metadata["raw_message"]
         reference = f"execution:{index}"
         return Evidence(
             evidence_id=f"{reference}:python_import",
@@ -251,6 +262,7 @@ def diagnose(
     *, python_requirement: Evidence | None = None,
     local_environment: Evidence | None = None,
     startup_probe: Evidence | None = None,
+    provided_logs: Sequence[Evidence] = (),
 ) -> tuple[list[DiagnosisResult], list[Evidence]]:
     """Return (diagnoses, evidence), preserving positive and blocked outcomes too.
 
@@ -275,6 +287,37 @@ def diagnose(
                      f"callable={environment.python_callable}"),
         ),
     ]
+
+    for offset, item in enumerate(provided_logs):
+        if item.kind == "ingestion_limitation":
+            evidence.append(item)
+            continue
+        item = replace(item, metadata=dict(item.metadata))
+        text = item.metadata.pop("text", "")
+        status = "unrecognized" if text.strip() else "empty"
+        evidence.append(item)
+        if item.metadata.get("input_type") == "traceback":
+            metadata = parse_import_failure(text, item.source)
+            if metadata is not None:
+                imported = Evidence(
+                    evidence_id=f"{item.evidence_id}:python_import",
+                    kind="python_import_failure", source="provided_traceback",
+                    summary=metadata["raw_message"], associated_id=item.evidence_id,
+                    location=item.location, metadata=metadata,
+                )
+                evidence.append(imported)
+                diagnoses.append(_diagnose_import_failure(imported, len(executions) + offset))
+                status = "parsed"
+        else:
+            facts = extract_install_facts(text)
+            item.metadata.update(facts)
+            if facts["messages"]:
+                status = "facts_only"
+        item.metadata["status"] = status
+        if status in ("empty", "unrecognized"):
+            evidence[evidence.index(item)] = ingestion_limitation(
+                item.source, item.location, item.metadata["input_type"], status,
+            )
 
     if detection.level == "unknown":
         diagnoses.append(DiagnosisResult(

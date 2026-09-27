@@ -21,7 +21,8 @@ Status priority: ERROR/CRITICAL means issues_detected; otherwise unknown detecti
 means unknown; otherwise WARNING means issues_detected; otherwise healthy.
 Healthy refers only to limited current checks. INFO safety notices alone are not
 project faults. CLI exit 0 allows warnings/unknown, exit 1 denotes ERROR/CRITICAL,
-and exit 2 denotes tool/input/output errors with no fabricated diagnostic report.
+and exit 2 denotes tool/usage/output errors with no fabricated diagnostic report.
+Recoverable supplied-log ingestion failures are limitations, not exit-2 errors.
 
 ### Run assessment — status semantics
 
@@ -175,3 +176,63 @@ exit 0 is positive evidence only. Startup/import/environment/version diagnoses
 remain independent. Repair and verification remain unexecuted plans. Metadata
 inspection is READ ONLY; confirmed startup is controlled project execution with
 possible project-defined side effects. Schema stays 0.2.
+
+## Supplied traceback and install-log evidence
+
+`--traceback-file PATH` and `--install-log PATH` are mutually exclusive. Either
+accepts `-` for stdin. Inputs must be UTF-8 (optional BOM), at most 256 KiB;
+files must be regular files rather than directories, symlinks or junctions.
+Missing, unreadable, oversized, undecodable, empty or unsupported inputs produce
+an ingestion limitation and allow remaining project checks to continue.
+
+The existing Evidence envelope is reused: kind `provided_log`, ID `input:log`,
+source `user_file` or `stdin`, location the absolute input path or null for stdin,
+and summary identifying externally supplied, unverified observations. Metadata:
+
+- input_type: `traceback` / `install_log`.
+- size_bytes: bytes read, including any BOM.
+- status: `parsed` / `facts_only`.
+- Install logs additionally contain `messages` and `patterns` arrays, retaining
+  only recognized lines. Patterns: `no_matching_distribution`,
+  `unsatisfied_requirement`, `ignored_python_versions`, `requires_python`.
+
+Tracebacks reuse the existing last-supported-exception-line parser and import
+diagnoses. Derived Evidence kind remains `python_import_failure`, but source is
+`provided_traceback`, ID `input:log:python_import`, associated_id `input:log`, and
+source_stream `user_file` / `stdin`. No ExecutionResult is invented. Existing
+captured-execution IDs, gating, source_stream values and startup behavior remain
+unchanged. Recognized imports yield ERROR symptoms / issues_detected, without
+claiming that the underlying distribution or current runtime cause is known.
+
+Install logs record literal pip messages only; Requires-Python and ignored
+versions are not promoted to project constraints or compatibility conclusions.
+These facts alone remain inconclusive and produce no speculative diagnosis.
+Every supplied log contributes a `provided_log` assessment limitation with its
+status and Evidence reference. It cannot verify the current environment, even
+alongside successful startup. Existing findings retain precedence.
+
+Unusable inputs instead produce kind `ingestion_limitation` with ID `input:log`,
+source `user_file` / `stdin`, location the requested absolute path / null, and
+metadata `input_type` plus `status`. Reasons are `missing_file`,
+`permission_denied`, `read_error`, `not_regular_file`, `oversized_input`,
+`invalid_utf8`, `empty`, or `unrecognized`. This observes a collection limitation,
+not a failure in the supplied log: no `provided_log`, import-failure Evidence,
+or speculative diagnosis is generated. Raw bodies and operating-system exception
+messages are not retained. Assessment limitations use `check: log_ingestion`,
+and include reason, source, input_type, requested_path and evidence_refs.
+Without independently detected issues, outcome is `inconclusive`, coverage is
+`incomplete`, and CLI exits 0. Existing ERROR/CRITICAL diagnoses still exit 1 and
+retain `issues_detected`; limitations remain visible. Usage errors, invalid project
+paths and internal workflow/output failures still exit 2.
+
+Raw input bodies are discarded after parsing; selected exception/pip lines may
+still contain sensitive text. Log commands are never evaluated or executed.
+Terminal rendering applies one shared control-character escaping function at the
+report boundary, including every derived diagnosis/preview and requested path.
+Only line feeds remain active; ESC, other C0, DEL and C1 are displayed as visible
+hex escapes. JSON serialization escapes controls and non-ASCII characters while
+preserving their decoded values; terminal formatting never alters diagnosis facts.
+Input parsing does not access the network, install packages or modify the project.
+The usual version probe and explicitly confirmed startup probe remain separate.
+New Evidence kinds/metadata and limitation values are additive under schema 0.2;
+no existing field is removed or renamed.

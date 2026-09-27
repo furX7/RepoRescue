@@ -70,6 +70,22 @@ Inspect a project without executing its code:
 repo-rescue "C:\work\sample"
 ```
 
+Read an existing error log without executing its contents:
+
+```powershell
+repo-rescue "C:\work\sample" --traceback-file traceback.txt
+repo-rescue "C:\work\sample" --install-log pip-error.txt
+Get-Content traceback.txt -Raw | repo-rescue "C:\work\sample" --traceback-file -
+```
+
+Choose one log input. UTF-8 text is limited to 256 KiB. Tracebacks support explicit
+missing-module and cannot-import-name exceptions; pip logs retain matching-version
+and Requires-Python facts without inferring compatibility or a repair. Supplied
+text does not verify the current project environment. Logs are never executed;
+unreadable or unusable logs appear as limitations while other checks continue.
+Terminal control characters are displayed as visible escapes. Startup still
+requires `--run-startup-probe`. See [JSON semantics](docs/json-schema.md#supplied-traceback-and-install-log-evidence).
+
 Explicitly confirm the supported startup probe for this invocation:
 
 ```powershell

@@ -39,6 +39,15 @@ class ReportWriteError(OSError):
     """A requested JSON report could not be created safely."""
 
 
+def safe_terminal_text(text: str) -> str:
+    """Display controls visibly; only report line breaks remain active."""
+    return ''.join(
+        f"\\x{ord(char):02x}" if char != '\n' and
+        (ord(char) < 32 or 127 <= ord(char) <= 159) else char
+        for char in text
+    )
+
+
 def _json_value(value: Any) -> Any:
     """Convert standard Python data types into JSON-compatible values."""
     if isinstance(value, Enum):
@@ -152,6 +161,14 @@ def _build_assessment(
 
     for item in evidence:
         status = item.metadata.get("status", "not_observed")
+        if item.kind == "provided_log":
+            limit("provided_log", status, (item.evidence_id,))
+        if item.kind == "ingestion_limitation":
+            limitations.append({
+                "check": "log_ingestion", "reason": status,
+                "source": item.source, "input_type": item.metadata["input_type"],
+                "requested_path": item.location, "evidence_refs": (item.evidence_id,),
+            })
         if item.kind == "local_python_environment" and status not in ("matched", "different", "none"):
             limit(item.kind, status, (item.evidence_id,))
         if item.kind == "python_requirement" and status not in ("compatible", "incompatible"):
@@ -341,6 +358,13 @@ def render_terminal_report(
 
     # Import details are shown once, beside findings; raw tracebacks stay in JSON.
     for item in evidence:
+        if item.kind == 'ingestion_limitation':
+            lines.append(f"  Log ingestion limitation ({item.source}, {item.metadata['input_type']}): {item.metadata['status']}; requested path: {item.location or 'stdin'}.")
+        if item.kind == 'provided_log':
+            lines.append(f"  Supplied {item.metadata['input_type']} ({item.source}): {item.summary}")
+            for message in item.metadata.get('messages', ()):
+                lines.append('  Install evidence: ' + message)
+            lines.append('  Supplied log limitation: ' + item.metadata['status'] + '; underlying cause and current runtime are unverified.')
         if item.kind == 'python_import_failure':
             if item.metadata.get('status') == 'missing_module':
                 lines.append(f"  Missing import: {item.metadata['missing_module']}")
@@ -423,10 +447,10 @@ def render_terminal_report(
         lines.append("READ ONLY: Repair preview only. Verification steps were not run; no dependency changes were made.")
     lines.append("No repair actions were executed.")
     lines.append("RepoRescue currently performs limited checks.")
-    return _terminal_paths(
+    return safe_terminal_text(_terminal_paths(
         "\n".join(lines), project, environment, evidence,
         requested_project_path, cwd if cwd is not None else Path.cwd(),
-    )
+    ))
 
 
 def write_json_report(
@@ -442,7 +466,7 @@ def write_json_report(
 
     path = Path(output_path)
     try:
-        text = json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
+        text = json.dumps(report, ensure_ascii=True, indent=2, allow_nan=False) + "\n"
         content = text.encode("utf-8")
     except (TypeError, ValueError, UnicodeError) as error:
         raise ReportWriteError(f"Could not serialize JSON report: {error}") from error

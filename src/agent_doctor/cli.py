@@ -14,6 +14,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("project_path", help="Project directory to inspect")
     parser.add_argument("--output", help="Create a JSON report at this path; never overwrite")
+    logs = parser.add_mutually_exclusive_group()
+    logs.add_argument("--traceback-file", help="Read a UTF-8 Python traceback (max 256 KiB); '-' reads stdin")
+    logs.add_argument("--install-log", help="Read a UTF-8 pip failure log (max 256 KiB); '-' reads stdin")
     parser.add_argument(
         "--run-startup-probe", action="store_true",
         help="Execute the supported project startup probe. This runs project code "
@@ -25,9 +28,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         if arguments.run_startup_probe:
             print("[CAUTION] Executing project code for the startup probe.", flush=True)
             print("Project code may have its own side effects.", flush=True)
+        log_options = {}
+        if arguments.traceback_file is not None:
+            log_options["traceback_file"] = arguments.traceback_file
+        if arguments.install_log is not None:
+            log_options["install_log"] = arguments.install_log
         result = run_workflow(
             arguments.project_path, arguments.output,
             confirm_startup=arguments.run_startup_probe,
+            **log_options,
         )
         print(result.terminal_report)
         if result.output_path is not None:

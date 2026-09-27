@@ -608,3 +608,21 @@ Phase 1 implementation must not begin until the user explicitly sends `START IMP
 - **Safety:** dangerous commands are rejected, caution and project-code commands require visible user approval, execution is bounded, outputs are masked, and the target project is not modified by RepoRescue.
 - **Testability:** filesystem access, process execution, platform-specific behavior, and the Python plugin can be replaced or isolated in tests. No LLM mock is needed until a provider exists.
 - **Known limitation:** command controls are not equivalent to sandboxing arbitrary project code; this limitation must remain explicit.
+
+## v0.4 Phase 1 / Step 2: supplied error text
+
+CLI selects one traceback or install-log path (`-` means stdin). Workflow reads
+bounded UTF-8 text before running any commands and supplies it through the existing
+Core Evidence channel. The Python Pack consumes the observation, reuses the import
+exception parser, and retains only supported exception/pip facts in report Evidence.
+Reading text creates no CommandProposal or ExecutionResult. Reporting records
+external provenance and incomplete verification; logs cannot establish current
+project health. Installation facts do not infer dependency/API/ABI compatibility.
+No new startup entrypoints, installed-package inspection or evidence correlation
+are introduced in this step.
+
+Recoverable ingestion failures use a distinct `ingestion_limitation` observation
+instead of fabricated log facts; remaining checks continue under existing finding
+priority and exit-code rules. Terminal rendering neutralizes control characters
+through a single helper after formatting all report text, covering derived prose
+as well as original log messages. JSON retains original facts through escaping.

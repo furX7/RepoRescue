@@ -86,6 +86,12 @@ unreadable or unusable logs appear as limitations while other checks continue.
 Terminal control characters are displayed as visible escapes. Startup still
 requires `--run-startup-probe`. See [JSON semantics](docs/json-schema.md#supplied-traceback-and-install-log-evidence).
 
+For recognized import failures, reports also include the current diagnostic
+interpreter, static module origins and installed distribution candidates/versions.
+Targets and parent packages are inspected without importing their code. Missing
+or ambiguous metadata remains a limitation; these facts do not establish API,
+ABI or version compatibility or the environment that produced an earlier log.
+
 Explicitly confirm the supported startup probe for this invocation:
 
 ```powershell

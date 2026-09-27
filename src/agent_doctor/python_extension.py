@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 
 from .diagnosis import diagnose
+from .python_evidence import interpreter_evidence, collect_import_evidence
 from .extensions import Capability, EXTENSION_API_VERSION, ExtensionMetadata, PackKind
 from .models import (
     CommandProposal, DetectionResult, DiagnosisResult, EnvironmentInfo, Evidence, ExecutionResult,
@@ -57,13 +58,16 @@ class PythonCoreExtension:
         def observation(kind: str) -> Evidence | None:
             return next((item for item in evidence if item.kind == kind), None)
 
-        return diagnose(
+        diagnoses, observations = diagnose(
             project, detection, environment, executions,
             python_requirement=observation("python_requirement"),
             local_environment=observation("local_python_environment"),
             startup_probe=observation("startup_probe"),
             provided_logs=tuple(item for item in evidence if item.kind in ("provided_log", "ingestion_limitation")),
         )
+        observations.append(interpreter_evidence())
+        observations.extend(collect_import_evidence(observations))
+        return diagnoses, observations
 
     def propose_diagnostic_commands(
         self, project: ProjectInfo, environment: EnvironmentInfo,

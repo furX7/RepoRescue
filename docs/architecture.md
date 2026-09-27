@@ -626,3 +626,23 @@ instead of fabricated log facts; remaining checks continue under existing findin
 priority and exit-code rules. Terminal rendering neutralizes control characters
 through a single helper after formatting all report text, covering derived prose
 as well as original log messages. JSON retains original facts through escaping.
+
+## v0.4 Phase 1 / Step 3: Python runtime origin evidence
+
+`python_evidence.py` belongs to the Python Pack. Its stdlib collectors append
+current-interpreter facts and targeted distribution/module observations after
+the existing pure diagnosis function identifies supported import symptoms.
+The Core workflow and Extension interfaces stay unchanged. Diagnosis outputs
+and preview plans are preserved; new Evidence is available for future steps.
+
+Module lookup uses standard spec finders directly to avoid parent-package imports
+and custom import hooks. Dotted names are traversed through static package search
+locations. Distribution discovery lists current interpreter paths' direct
+dist-info / egg-info entries only when explicit module targets exist. Stdlib email
+parsing reads metadata headers from each entry's own file; top_level.txt and
+RECORD provide static installed-module mappings. SOURCES.txt is not read: source
+layout does not establish installed module ownership. No metadata finder hooks are
+invoked, and RECORD cannot choose another entry's metadata path.
+Ambiguous or unavailable facts add report limitations;
+they never become package-missing or compatibility diagnoses. Current collector
+facts are explicitly distinct from an earlier traceback's execution context.

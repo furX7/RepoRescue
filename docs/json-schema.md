@@ -236,3 +236,75 @@ Input parsing does not access the network, install packages or modify the projec
 The usual version probe and explicitly confirmed startup probe remain separate.
 New Evidence kinds/metadata and limitation values are additive under schema 0.2;
 no existing field is removed or renamed.
+
+## Current interpreter, installed distributions and module origins
+
+Step 3 adds optional Evidence kinds, retaining schema 0.2 and all existing fields
+and exit codes. These observations do not change diagnoses or repair previews.
+They describe the running RepoRescue interpreter, not necessarily the interpreter
+or import search path that produced an externally supplied log or startup output.
+
+- `python_interpreter` (`environment:interpreter`, source `stdlib:sys`): executable,
+  full version, prefix, base_prefix, is_venv, platform, machine and pointer_bits.
+  This is collected once; it does not launch or switch interpreters.
+- `python_module_origin` (`module:<name>`, source `stdlib:importlib.machinery`): module,
+  origin, search_locations, module_type (module/package/namespace/builtin/frozen),
+  interpreter_ref and trigger_evidence_refs. lookup_scope explicitly identifies
+  static stdlib spec lookup. Site-packages roots and matching paths, prefix_paths
+  and venv_paths record lexical membership, not symlink ownership or compatibility.
+  `available` means a spec was found; `not_found` means this limited lookup found
+  none; exceptions yield `unavailable` with only error_type, never raw exception text.
+- `python_distribution_mapping` (`mapping:<module>`, source
+  `stdlib:filesystem_metadata`): module, top_level_module, candidate_distributions,
+  candidate_distribution_refs, interpreter_ref, status and discovery_errors.
+  One candidate is `available`, multiple metadata records are `ambiguous`, none
+  is `unknown`; incomplete discovery or malformed metadata is `unavailable` unless
+  already ambiguous. No candidate is selected automatically. Candidate records
+  in distinct directories remain separate even when their Name headers are equal.
+- `python_distribution` (`distribution:<run-local index>`, source `stdlib:filesystem_metadata`):
+  metadata name, installed_version, metadata_location,
+  dist_info_location, interpreter_ref and status. Locations are null when not
+  determinable from the actual discovered metadata source. Lookup exceptions yield unavailable;
+  partial known facts are retained, without inventing installed versions or paths.
+
+Only explicit `python_import_failure` module names trigger metadata/module lookup,
+including startup and supplied traceback symptoms. Dotted names map through their
+top-level package; repeated targets and distribution candidates are deduplicated.
+With no target, no distribution inventory or module scan occurs.
+
+Metadata discovery directly lists immediate *.dist-info / *.egg-info children of
+the current interpreter's explicit sys.path / site-packages directories. Stdlib
+email parsing reads each directory's own METADATA / PKG-INFO (or an egg-info file);
+Name, Version and metadata path come from that one source. Linked metadata sources
+are rejected. RECORD never determines the metadata path. Static mapping prefers
+top_level.txt, then infers top-level names from validated installed RECORD entries without
+opening package code. RECORD uses strict CSV with three-field rows; RECORD entries reject absolute paths, dot segments, controls and ambiguous path
+components. File-list entries are never opened, including paths to other metadata.
+Name and Version accept identical duplicate headers, but conflicting duplicates,
+malformed headers or missing fields make the observation unavailable; unknown
+fields remain null. No distribution-name normalization merges records. Missing,
+unreadable or malformed metadata records lower coverage, preserving known candidates.
+No packages_distributions(), distribution(), Distribution.discover(), or third-party
+find_distributions() is called. ZIP metadata discovery is outside this filesystem
+scope; ZIP module specs remain supported by the separate origin lookup.
+Reads are bounded to 1 MiB per metadata/header/top-level file and 4 MiB per
+RECORD file. SOURCES.txt is not read or used for ownership: it describes source
+layout rather than installed module paths. Discovery allows at most 128 distinct search roots,
+10,000 immediate entries and 2,048 metadata candidates per directory. Linked
+sources/search-root ancestors and exceeded limits degrade to unavailable with
+incomplete coverage; over-limit directories contribute no partial candidates.
+
+Ordinary `importlib.util.find_spec()` can import a dotted name's parent and invoke
+custom import hooks. To honor the no-execution boundary, the collector directly
+uses stdlib builtin/frozen/file/zip spec finders, traversing package search locations
+without invoking loaders or importing targets/parents. Custom import hooks and
+runtime changes to package `__path__` are outside this static lookup's scope.
+No sys.path changes, package installations, network calls or project writes occur.
+
+Unavailable origins/metadata, unknown or ambiguous mapping and limited not-found
+lookups contribute assessment limitations and incomplete coverage, not new failure
+diagnoses. Existing ERROR/WARNING findings retain precedence. Module mapping does
+not prove the distribution supplies the resolved file. No declared/locked/resolved
+version distinction, API/ABI/wheel inference, correlation or upgrade/downgrade
+recommendation is implemented. Terminal paths use the existing external-path
+presentation and shared control escaping; JSON retains structured original facts.

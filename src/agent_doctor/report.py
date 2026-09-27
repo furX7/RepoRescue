@@ -169,6 +169,9 @@ def _build_assessment(
                 "source": item.source, "input_type": item.metadata["input_type"],
                 "requested_path": item.location, "evidence_refs": (item.evidence_id,),
             })
+        if item.kind in ("python_module_origin", "python_distribution_mapping", "python_distribution"):
+            if status not in ("available", "mapped"):
+                limit(item.kind, status, (item.evidence_id,))
         if item.kind == "local_python_environment" and status not in ("matched", "different", "none"):
             limit(item.kind, status, (item.evidence_id,))
         if item.kind == "python_requirement" and status not in ("compatible", "incompatible"):
@@ -252,7 +255,10 @@ def _terminal_paths(
             interpreter, project_root=root, cwd=workspace, external_label="external interpreter",
         )
     for item in evidence:
-        for key in ('entrypoint', 'detected_interpreter_path', 'current_python_executable', 'interpreter'):
+        for key in ('entrypoint', 'detected_interpreter_path', 'current_python_executable', 'interpreter',
+                    'executable', 'prefix', 'base_prefix', 'origin', 'search_locations',
+                    'metadata_location', 'dist_info_location', 'site_packages_roots',
+                    'site_packages_paths', 'prefix_paths', 'venv_paths'):
             value = item.metadata.get(key)
             values = value if isinstance(value, (tuple, list)) else (value,)
             for value in values:
@@ -262,7 +268,9 @@ def _terminal_paths(
                 if path.is_absolute():
                     replacements.setdefault(path, _display_path(
                         path, project_root=root, cwd=workspace,
-                        external_label='external interpreter' if key != 'entrypoint' else 'external path',
+                        external_label='external interpreter' if key in (
+                            'detected_interpreter_path', 'current_python_executable', 'interpreter', 'executable',
+                        ) else 'external path',
                     ))
     # Exact known path spellings may occur inside diagnosis/verification prose.
     # These substitutions are presentation only; ancestry was decided by pathlib.
@@ -358,6 +366,12 @@ def render_terminal_report(
 
     # Import details are shown once, beside findings; raw tracebacks stay in JSON.
     for item in evidence:
+        if item.kind in ('python_module_origin', 'python_distribution_mapping', 'python_distribution'):
+            lines.append('  Environment evidence: ' + item.summary)
+            if item.kind == 'python_module_origin':
+                lines.append(f"  Module origin: {item.metadata.get('origin') or 'unknown'}")
+            if item.kind == 'python_distribution':
+                lines.append(f"  Installed version: {item.metadata.get('installed_version') or 'unknown'}")
         if item.kind == 'ingestion_limitation':
             lines.append(f"  Log ingestion limitation ({item.source}, {item.metadata['input_type']}): {item.metadata['status']}; requested path: {item.location or 'stdin'}.")
         if item.kind == 'provided_log':

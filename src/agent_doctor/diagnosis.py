@@ -311,7 +311,7 @@ def diagnose(
         else:
             facts = extract_install_facts(text)
             item.metadata.update(facts)
-            if facts["messages"]:
+            if facts["messages"] or facts["resolved_versions"]:
                 status = "facts_only"
         item.metadata["status"] = status
         if status in ("empty", "unrecognized"):

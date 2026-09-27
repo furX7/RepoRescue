@@ -4,6 +4,7 @@ from collections.abc import Sequence
 
 from .diagnosis import diagnose
 from .python_evidence import interpreter_evidence, collect_import_evidence
+from .version_provenance import collect_project_provenance, installed_provenance, finalize
 from .extensions import Capability, EXTENSION_API_VERSION, ExtensionMetadata, PackKind
 from .models import (
     CommandProposal, DetectionResult, DiagnosisResult, EnvironmentInfo, Evidence, ExecutionResult,
@@ -66,7 +67,10 @@ class PythonCoreExtension:
             provided_logs=tuple(item for item in evidence if item.kind in ("provided_log", "ingestion_limitation")),
         )
         observations.append(interpreter_evidence())
-        observations.extend(collect_import_evidence(observations))
+        provenance = collect_project_provenance(project, observations)
+        names = tuple(sorted({item.metadata["name"] for item in provenance if item.metadata.get("name")}))
+        observations.extend(collect_import_evidence(observations, names))
+        observations.extend(finalize([*provenance, *installed_provenance(observations, names)]))
         return diagnoses, observations
 
     def propose_diagnostic_commands(

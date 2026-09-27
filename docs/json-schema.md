@@ -304,7 +304,71 @@ No sys.path changes, package installations, network calls or project writes occu
 Unavailable origins/metadata, unknown or ambiguous mapping and limited not-found
 lookups contribute assessment limitations and incomplete coverage, not new failure
 diagnoses. Existing ERROR/WARNING findings retain precedence. Module mapping does
-not prove the distribution supplies the resolved file. No declared/locked/resolved
-version distinction, API/ABI/wheel inference, correlation or upgrade/downgrade
-recommendation is implemented. Terminal paths use the existing external-path
+not prove the distribution supplies the resolved file. Step 4 adds the version-source distinction below. No API/ABI/wheel inference,
+correlation or upgrade/downgrade recommendation is implemented. Terminal paths use the existing external-path
 presentation and shared control escaping; JSON retains structured original facts.
+
+
+## Version provenance — v0.4 Phase 1 / Step 4
+
+`python_version_provenance` reuses the Evidence envelope and schema 0.2. Each
+run-local `provenance:N` row has `provenance` (declared/locked/resolved/installed),
+original `name`, PEP 503 `normalized_name`, literal `value`, `status`, and
+`evidence_origin` (field/group/line or metadata path). `source` and `location`
+identify the actual file, stdin or current-interpreter metadata. Unknown names
+and values are null. An empty declared value means an unconstrained declaration.
+Optional `limitation` and `error_type` describe uncertainty without raw exceptions.
+No version comparisons or failure diagnoses are added.
+
+- **declared:** PEP 621 project.dependencies and optional-dependencies in
+  pyproject.toml; requirements*.txt; setup.cfg options.install_requires and
+  options.extras_require. Requirements retain raw_requirement, extras and marker.
+  A limited literal specifier grammar is accepted; markers are preserved but not
+  evaluated (`unknown`). Dynamic dependencies, executable setup.py, Poetry's
+  declaration dialect, remote/local references, include directives and hashes
+  remain unknown/unavailable. Includes are never followed and setup.py is never
+  executed. A requirements `==` pin remains declared, never locked.
+- **locked:** uv.lock package name/version (format version 1), poetry.lock package
+  name/version (known 1.0/1.1/2.0/2.1 lock-version), and Pipfile.lock default/develop
+  exact `==` versions. Local/editable uv packages and Poetry file/directory/git
+  sources do not supply supported registry pins. Unknown versions/structures and
+  non-exact Pipfile values degrade; lock entries are observations, not proof of
+  applicability to the current interpreter, platform or selected extras.
+- **resolved:** only explicit pip dry-run `Would install name-version ...` lines
+  from the existing user-supplied install-log input. The whole line must contain
+  supported package/version tokens. Download candidates, Collecting lines,
+  successful installation summaries and commands do not supply resolved facts.
+  Lines over 4096 characters and collections over 2048 rows yield no resolved
+  rows. `source_evidence_ref` links to the supplied log, `evidence_origin` to its
+  line; raw_message retains only the selected literal token. The scope is
+  `supplied_log_only`, never the current environment.
+- **installed:** projection of Step 3 `python_distribution` observations, with
+  `source_evidence_ref`, metadata origin and `interpreter_ref`. Scope is
+  `current_interpreter_only`. Explicit distribution names from declarations,
+  locks and resolved rows also target that existing bounded metadata collector;
+  no module-name guess is made. Missing observations are unknown, not a claim
+  of absence. `python_distribution_discovery` records incomplete discovery.
+
+Multiple origins and duplicate rows remain distinct. Different known values for
+the same normalized name **within one provenance** mark available rows ambiguous;
+this expresses alternatives, not incompatibility. Different provenances never
+conflict with each other. Names such as foo-bar and foobar remain distinct.
+The normalized key never replaces the original name or merges distributions.
+
+Only recognized sources in the existing shallow project snapshot are read:
+root and one direct child level, excluding the existing environment/cache paths.
+No recursive content scan or arbitrary log discovery occurs. Reads are limited
+to 64 sources, 256 KiB per source, and 2048 parsed project rows; exceeded limits,
+malformed files and unsupported metadata remain explicit limitations. Links,
+junctions, linked ancestors and escaped snapshot paths are refused. Concurrent
+path replacement after validation remains a filesystem limitation, as with the
+existing collectors. With no explicit dependency or import target, installed
+metadata discovery is not run. Empty supported dependency lists add no invented
+dependency facts.
+
+Unknown/unavailable/ambiguous provenance and failed discovery contribute
+assessment limitations and incomplete coverage. Existing findings retain
+priority, exit codes are unchanged, and terminal rendering uses shared control
+escaping. No network, installation, third-party import, project execution,
+repair recommendation, ABI/wheel inference or cross-evidence correlation is
+introduced by this collector.

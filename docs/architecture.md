@@ -646,3 +646,16 @@ invoked, and RECORD cannot choose another entry's metadata path.
 Ambiguous or unavailable facts add report limitations;
 they never become package-missing or compatibility diagnoses. Current collector
 facts are explicitly distinct from an earlier traceback's execution context.
+
+
+## v0.4 Phase 1 / Step 4: Version provenance
+
+The Python Pack's version_provenance module parses literal project source facts
+from the existing bounded snapshot. The Pack combines these with parsed supplied
+install-log selections and projections of Step 3 distribution observations.
+Named distribution targets share the existing metadata discovery pass with
+import targets, while preserving module/distribution separation. Core adds no
+language-specific diagnosis or execution stage. Reports expose additive Evidence
+and assessment limitations under schema 0.2; versions and exit codes are unchanged.
+See json-schema.md for supported grammars, uncertainty and resource limits.
+No compatibility inference, correlation or repair decision is added.

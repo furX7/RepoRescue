@@ -5,6 +5,7 @@ import re
 import sys
 
 from .models import Evidence
+from .version_provenance import extract_resolved_versions
 
 
 MAX_INPUT_BYTES = 256 * 1024
@@ -83,4 +84,5 @@ def extract_install_facts(text: str) -> dict:
             continue
         messages.append(line)
         patterns.append(pattern)
-    return {"messages": tuple(messages), "patterns": tuple(patterns)}
+    return {"messages": tuple(messages), "patterns": tuple(patterns),
+            "resolved_versions": extract_resolved_versions(text)}

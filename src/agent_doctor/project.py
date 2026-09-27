@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .models import EnvironmentInfo, ProjectInfo
+from .version_provenance import is_source
 
 
 PYTHON_MANIFESTS = frozenset({
@@ -59,7 +60,7 @@ def scan_project(path: str | Path, *, max_entries: int = 1000) -> ProjectInfo:
 
                 name = entry.name.casefold()
                 is_manifest = name in PYTHON_MANIFESTS
-                if is_manifest or entry_path.suffix.casefold() == ".py":
+                if is_manifest or is_source(entry.name) or entry_path.suffix.casefold() == ".py":
                     relative_path = entry_path.relative_to(root).as_posix()
                     files.append(relative_path)
                     if is_manifest:

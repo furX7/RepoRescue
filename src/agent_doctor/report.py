@@ -169,7 +169,8 @@ def _build_assessment(
                 "source": item.source, "input_type": item.metadata["input_type"],
                 "requested_path": item.location, "evidence_refs": (item.evidence_id,),
             })
-        if item.kind in ("python_module_origin", "python_distribution_mapping", "python_distribution"):
+        if item.kind in ("python_module_origin", "python_distribution_mapping", "python_distribution",
+                         "python_distribution_discovery", "python_version_provenance"):
             if status not in ("available", "mapped"):
                 limit(item.kind, status, (item.evidence_id,))
         if item.kind == "local_python_environment" and status not in ("matched", "different", "none"):
@@ -372,6 +373,10 @@ def render_terminal_report(
                 lines.append(f"  Module origin: {item.metadata.get('origin') or 'unknown'}")
             if item.kind == 'python_distribution':
                 lines.append(f"  Installed version: {item.metadata.get('installed_version') or 'unknown'}")
+        if item.kind == 'python_version_provenance':
+            lines.append(f"  Version provenance: {item.metadata['provenance']}; {item.metadata['name'] or 'unknown'}; {item.metadata['value'] or 'unknown/unconstrained'}; {item.metadata['status']}; source: {item.source}; path: {item.location or 'unknown'}; origin: {item.metadata.get('evidence_origin')}.")
+        if item.kind == 'python_distribution_discovery':
+            lines.append('  Environment evidence: ' + item.summary)
         if item.kind == 'ingestion_limitation':
             lines.append(f"  Log ingestion limitation ({item.source}, {item.metadata['input_type']}): {item.metadata['status']}; requested path: {item.location or 'stdin'}.")
         if item.kind == 'provided_log':

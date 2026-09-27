@@ -310,3 +310,13 @@ Pillow 不是运行时依赖；缺少 Pillow 时只显示明确提示，不会�
 ## License
 
 [MIT](LICENSE)。Copyright (c) 2026 RepoRescue contributors.
+
+
+### 依赖版本来源（v0.4 Phase 1 / Step 4）
+
+只读 Evidence 分别记录 declared 声明约束、locked 锁定版本、用户提供安装日志中明确的
+pip dry-run resolved 选择，以及当前解释器的 installed 分发元数据。版本数字不同不会
+自动触发兼容性诊断。每条记录保留来源及具体位置；不确定或冲突信息保持
+unknown/unavailable/ambiguous。支持的格式与资源边界见
+[JSON 契约](docs/json-schema.md#version-provenance--v04-phase-1--step-4)。
+不会安装依赖、import 第三方包或执行项目代码。

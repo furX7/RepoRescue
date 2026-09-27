@@ -293,7 +293,7 @@ def discover_metadata() -> tuple[list[dict], tuple[str, ...]]:
     return records, tuple(sorted(set(errors)))
 
 
-def collect_import_evidence(evidence: Sequence[Evidence]) -> tuple[Evidence, ...]:
+def collect_import_evidence(evidence: Sequence[Evidence], distribution_names: Sequence[str] = ()) -> tuple[Evidence, ...]:
     """Inspect explicit targets only; static metadata facts never become diagnoses."""
     targets = {}
     for item in evidence:
@@ -302,13 +302,24 @@ def collect_import_evidence(evidence: Sequence[Evidence]) -> tuple[Evidence, ...
         module = item.metadata.get('missing_module') or item.metadata.get('source_module')
         if isinstance(module, str) and re.fullmatch(r'[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*', module, flags=re.ASCII):
             targets.setdefault(module, []).append(item.evidence_id)
-    if not targets:
+    if not targets and not distribution_names:
         return ()
     try:
         records, errors = discover_metadata()
     except Exception as error:
         records, errors = [], (type(error).__name__,)
-    observations, selected = [], set()
+    from .version_provenance import normalize_name
+
+    names = {normalize_name(name) for name in distribution_names}
+    observations = []
+    selected = {index for index, record in enumerate(records)
+                if record["facts"]["name"] and normalize_name(record["facts"]["name"]) in names}
+    if names and errors:
+        observations.append(Evidence(
+            "distribution:discovery", "python_distribution_discovery", "stdlib:filesystem_metadata",
+            "Current interpreter metadata discovery is incomplete.",
+            metadata={"status": "unavailable", "discovery_errors": errors,
+                      "interpreter_ref": "environment:interpreter"}))
     for module, refs in targets.items():
         observations.append(_module_evidence(module, tuple(refs)))
         candidates = tuple(index for index, record in enumerate(records)

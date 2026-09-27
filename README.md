@@ -398,3 +398,14 @@ or private user data in public issues.
 ## License
 
 [MIT](LICENSE). Copyright (c) 2026 RepoRescue contributors.
+
+
+### Dependency version sources (v0.4 Phase 1 / Step 4)
+
+Read-only Evidence distinguishes declared constraints, lockfile versions,
+explicit pip dry-run selections in supplied install logs, and observed installed
+distributions in the current interpreter. Different numbers are not a
+compatibility diagnosis. Each row retains its source and origin; uncertain or
+conflicting observations remain unknown/unavailable/ambiguous. Supported sources
+and resource limits are documented in [the JSON contract](docs/json-schema.md#version-provenance--v04-phase-1--step-4).
+No packages are installed and no dependency or project code is imported.

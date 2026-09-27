@@ -320,3 +320,13 @@ pip dry-run resolved 选择，以及当前解释器的 installed 分发元数据
 unknown/unavailable/ambiguous。支持的格式与资源边界见
 [JSON 契约](docs/json-schema.md#version-provenance--v04-phase-1--step-4)。
 不会安装依赖、import 第三方包或执行项目代码。
+
+
+### 兼容性证据（v0.4 Phase 1 / Step 5）
+
+针对已选定分发读取其自身 WHEEL tag；从用户已有安装日志的明确 wheel 文件名记录
+来源与 tag。报告增加当前解释器的 ABI/platform 事实及有限 tag 匹配。
+明确的符号导入失败可触发有界静态 Python 源码观察，不 import 或执行源码。
+tag 匹配或看到定义都不能证明运行时/API 兼容性；未知格式和判断保持显式限制。
+不生成升级/降级决策，也不关联跨证据根因。支持范围与限额见
+[JSON 契约](docs/json-schema.md)。

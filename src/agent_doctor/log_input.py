@@ -5,6 +5,7 @@ import re
 import sys
 
 from .models import Evidence
+from .compatibility_evidence import extract_wheel_log_facts
 from .version_provenance import extract_resolved_versions
 
 
@@ -85,4 +86,4 @@ def extract_install_facts(text: str) -> dict:
         messages.append(line)
         patterns.append(pattern)
     return {"messages": tuple(messages), "patterns": tuple(patterns),
-            "resolved_versions": extract_resolved_versions(text)}
+            "resolved_versions": extract_resolved_versions(text), **extract_wheel_log_facts(text)}

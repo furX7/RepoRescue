@@ -173,6 +173,13 @@ def _build_assessment(
                          "python_distribution_discovery", "python_version_provenance"):
             if status not in ("available", "mapped"):
                 limit(item.kind, status, (item.evidence_id,))
+        if item.kind in ("python_abi_platform", "python_api", "python_wheel", "python_compatibility_collection"):
+            if status != "available":
+                limit(item.kind, status, (item.evidence_id,))
+            elif item.kind == "python_api":
+                limit(item.kind, "static_syntax_only", (item.evidence_id,))
+            elif item.kind == "python_wheel" and item.metadata.get("tag_check") != "tag_match":
+                limit(item.kind, item.metadata.get("tag_check", "unknown"), (item.evidence_id,))
         if item.kind == "local_python_environment" and status not in ("matched", "different", "none"):
             limit(item.kind, status, (item.evidence_id,))
         if item.kind == "python_requirement" and status not in ("compatible", "incompatible"):
@@ -373,6 +380,12 @@ def render_terminal_report(
                 lines.append(f"  Module origin: {item.metadata.get('origin') or 'unknown'}")
             if item.kind == 'python_distribution':
                 lines.append(f"  Installed version: {item.metadata.get('installed_version') or 'unknown'}")
+        if item.kind in ('python_abi_platform', 'python_api', 'python_wheel', 'python_compatibility_collection'):
+            lines.append('  Compatibility evidence: ' + item.summary)
+            if item.kind == 'python_wheel':
+                lines.append(f"  Wheel tags: {', '.join(item.metadata.get('tags', ()))}; current interpreter tag check: {item.metadata.get('tag_check', 'unknown')}; runtime compatibility: unknown.")
+            if item.location:
+                lines.append(f"  Compatibility source: {item.location}")
         if item.kind == 'python_version_provenance':
             lines.append(f"  Version provenance: {item.metadata['provenance']}; {item.metadata['name'] or 'unknown'}; {item.metadata['value'] or 'unknown/unconstrained'}; {item.metadata['status']}; source: {item.source}; path: {item.location or 'unknown'}; origin: {item.metadata.get('evidence_origin')}.")
         if item.kind == 'python_distribution_discovery':

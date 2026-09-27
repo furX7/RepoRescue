@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 
 from .diagnosis import diagnose
+from .compatibility_evidence import collect_compatibility_evidence
 from .python_evidence import interpreter_evidence, collect_import_evidence
 from .version_provenance import collect_project_provenance, installed_provenance, finalize
 from .extensions import Capability, EXTENSION_API_VERSION, ExtensionMetadata, PackKind
@@ -71,6 +72,7 @@ class PythonCoreExtension:
         names = tuple(sorted({item.metadata["name"] for item in provenance if item.metadata.get("name")}))
         observations.extend(collect_import_evidence(observations, names))
         observations.extend(finalize([*provenance, *installed_provenance(observations, names)]))
+        observations.extend(collect_compatibility_evidence(observations))
         return diagnoses, observations
 
     def propose_diagnostic_commands(

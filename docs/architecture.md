@@ -659,3 +659,16 @@ language-specific diagnosis or execution stage. Reports expose additive Evidence
 and assessment limitations under schema 0.2; versions and exit codes are unchanged.
 See json-schema.md for supported grammars, uncertainty and resource limits.
 No compatibility inference, correlation or repair decision is added.
+
+
+## v0.4 Phase 1 / Step 5: Compatibility Evidence
+
+compatibility_evidence stays inside the Python Pack. It consumes already selected
+Step 3 module/distribution facts and parsed Step 2 logs, adding current interpreter
+build facts, own WHEEL metadata, artifact tag observations and bounded static API
+syntax. No extension stage or Core execution capability is added. A conservative
+tag check is explicitly distinct from runtime/API compatibility, which remains
+unknown. API reads are AST-only and gated by explicit symbol failures; WHEEL reads
+are gated by selected distributions; no target triggers no new collection.
+Source/path/ref, limitations, bounded collection and assessment are described in
+json-schema.md. Step 6 cross-evidence correlation is not implemented.

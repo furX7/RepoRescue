@@ -409,3 +409,15 @@ compatibility diagnosis. Each row retains its source and origin; uncertain or
 conflicting observations remain unknown/unavailable/ambiguous. Supported sources
 and resource limits are documented in [the JSON contract](docs/json-schema.md#version-provenance--v04-phase-1--step-4).
 No packages are installed and no dependency or project code is imported.
+
+
+### Compatibility evidence (v0.4 Phase 1 / Step 5)
+
+Selected installed distributions can contribute their own WHEEL tags; explicit
+wheel mentions in supplied install logs retain filename/tag facts. The report
+adds current interpreter ABI/platform observations and limited tag checks.
+Explicit symbol-import failures can also expose bounded static Python source
+syntax, without importing or running it. Matching tags or seeing a definition
+does not prove runtime/API compatibility. Unknown formats and checks remain
+visible limitations; no upgrade/downgrade decision or root-cause correlation is
+added. See the [JSON contract](docs/json-schema.md) for supported cases and limits.

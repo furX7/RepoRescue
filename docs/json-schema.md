@@ -304,8 +304,8 @@ No sys.path changes, package installations, network calls or project writes occu
 Unavailable origins/metadata, unknown or ambiguous mapping and limited not-found
 lookups contribute assessment limitations and incomplete coverage, not new failure
 diagnoses. Existing ERROR/WARNING findings retain precedence. Module mapping does
-not prove the distribution supplies the resolved file. Step 4 adds the version-source distinction below. No API/ABI/wheel inference,
-correlation or upgrade/downgrade recommendation is implemented. Terminal paths use the existing external-path
+not prove the distribution supplies the resolved file. Step 4 adds the version-source distinction below. Step 5 adds limited compatibility Evidence below; no runtime compatibility
+inference, root-cause correlation or upgrade/downgrade recommendation is implemented. Terminal paths use the existing external-path
 presentation and shared control escaping; JSON retains structured original facts.
 
 
@@ -372,3 +372,115 @@ priority, exit codes are unchanged, and terminal rendering uses shared control
 escaping. No network, installation, third-party import, project execution,
 repair recommendation, ABI/wheel inference or cross-evidence correlation is
 introduced by this collector.
+
+
+## API / Wheel / ABI / Platform Evidence — v0.4 Phase 1 / Step 5
+
+These additive Evidence kinds retain schema 0.2, existing diagnoses, previews,
+legacy statuses and exit codes. They do not introduce repair recommendations,
+package operations, cross-evidence root-cause correlation or runtime validation.
+All observations retain their original sources and run-local references.
+
+### Current interpreter build facts
+
+`python_abi_platform` (`environment:abi_platform`, source `stdlib:sysconfig`)
+records implementation, python_version, sys_platform, pointer_bits, SOABI,
+extension_suffix, platform_tag, platform_tag_overridden, debug_build, gil_disabled, abi_flags and a
+conservatively derived native_abi where recognized. `interpreter_ref` links to
+Step 3; runtime_scope is current_interpreter_only. Absent/unknown build details
+do not become an assumed ABI. Build fields are read only from an already
+initialized stdlib sysconfig cache: this collector never initializes it through
+lazy imports. A missing cache produces unavailable with known basic interpreter
+facts retained. Platform helpers with potentially lazy imports are not invoked;
+unknown platform labels remain null. No process, libc probe or binary loader runs.
+
+### WHEEL and supplied artifact facts
+
+`python_wheel` from installed_wheel_metadata reads only the WHEEL file beside a
+selected distribution's own METADATA, inside its actual .dist-info directory.
+source_evidence_ref identifies that Step 3 distribution; evidence_origin and
+location identify WHEEL. The collector accepts Wheel-Version 1.0 and literal
+Root-Is-Purelib true/false, retaining raw_tags and expanding compressed tag sets.
+Root-Is-Purelib records an installation scheme, not proof that all code is pure
+Python. Multiple tags are alternatives; repeated tags remain in raw_tags and
+are deduplicated only for checks. Duplicate/conflicting required headers,
+missing files, malformed tags, unknown wheel format and exceeded limits remain
+unavailable. Unavailable distribution identity keeps the wheel observation
+unknown. Different distribution origins are never merged.
+
+Existing supplied install-log ingestion also records explicit Processing,
+Downloading, Using cached artifact lines and pip's exact unsupported-wheel
+error form. Filename components and tags are parsed from the basename only;
+artifact_token retains the supplied path/URL as text, evidence_origin the log
+line, and source_evidence_ref the log. No path, URL, archive or downloaded
+candidate is opened. observation distinguishes artifact_mention from
+logged_rejection. Neither becomes resolved/installed provenance, and a logged
+rejection is not attributed to the current interpreter. Malformed filenames
+remain unknown; unrelated commands and ambiguous prose yield no artifact row.
+
+`tag_checks` lists each expanded tag's tag_match/tag_mismatch/unknown result;
+`tag_check` is tag_match if any alternative matches, unknown if any remaining
+alternative is unsupported, otherwise tag_mismatch. This is a deliberately
+limited tag check against the current interpreter. runtime_evidence_ref points
+to environment:abi_platform and tag_check_runtime_scope is
+current_interpreter_only, even when the filename came from a supplied log.
+compatibility_scope is metadata_tags_only. runtime_compatibility always stays
+unknown: matching labels cannot validate binaries, system libraries, package
+code, APIs, or the environment of an earlier log.
+
+Supported checks cover generic py major/minor none tags, CPython exact minor
+none/native ABI, normal CPython abi3 lower bounds and Windows platform tags.
+CPython 3.8+ debug builds also admit the corresponding release ABI. Free-threaded
+abi3, unrecognized ABI/runtime combinations, same-OS manylinux/musllinux libc
+requirements and macOS deployment targets remain unknown. Exact Linux basic
+platform labels can match only with known consistent process bitness and no
+cross-build platform override; otherwise they remain unknown. Known Windows/Linux/macOS family differences can
+exclude a tag. This is not a complete replacement for an installer's tag engine.
+Native ABI combined with platform any is not assumed universally eligible.
+
+### Static API syntax
+
+`python_api` (source stdlib:ast) is gated by an explicit symbol-import failure.
+source_evidence_ref identifies the failure; module_origin_ref identifies the
+current Step 3 module observation; evidence_origin/location identify the actual
+plain .py source when available. requested_symbol and module retain the request.
+Only bounded source bytes are parsed. Source encoding cookies use a restricted
+UTF-8/ASCII/Latin-1 alias set; unknown codecs are unavailable without calling
+the extensible codec registry or importing codec modules. A UTF-8 BOM conflicting
+with a non-UTF-8 cookie is unavailable.
+direct_syntax_bindings records top-level def/class/import/simple assignment or
+annotation syntax and line numbers. literal_all_observations records only
+literal list/tuple __all__ membership and lines. No expression, decorator,
+annotation, import or project code is evaluated.
+
+symbol_observation is direct_syntax_seen or not_seen_in_direct_syntax. Neither
+asserts a runtime export: conditional code, wildcard imports, __getattr__,
+mutation, re-exports, deletes and execution order are not resolved. An available
+status means the syntax was read, not that the API exists or is compatible.
+api_compatibility always stays unknown. Binary/builtin/frozen/namespace/ZIP
+origins without a proven plain source, malformed/oversized source and read
+failures become unavailable, with error_type only. Static API observations
+always contribute a static_syntax_only assessment limitation.
+
+### Collection and reporting boundary
+
+No recursive scan or new input option is added. Only existing selected
+distributions, explicit requested symbols and supplied artifact logs trigger
+this collector; no target means no ABI probe or source read. Source reads reject
+relative/parent-traversing paths, symlinks, junctions, linked ancestors and
+non-regular files; each read is capped at 256 KiB. Validation is not an atomic
+filesystem snapshot: concurrent path replacement remains a limitation of these
+and the existing read-only collectors.
+
+Limits: 256 expanded tags, 1024 characters per raw tag/filename, 10000 AST nodes,
+128 combined distribution/API/log-artifact targets, 4096 characters per selected
+log line, and 128 parsed artifact mentions per supplied log. Exceeded budgets
+are visible through python_compatibility_collection or unknown/unavailable
+source facts; no unbounded directory/archive or binary inspection occurs.
+Unknown/unavailable observations and unknown/mismatched tag checks contribute
+assessment limitations, never failure diagnoses. Existing ERROR findings retain
+issues_detected. Shared terminal escaping and JSON serialization remain intact.
+
+Specification references: [PyPA wheel format](https://packaging.python.org/en/latest/specifications/binary-distribution-format/),
+[PyPA compatibility tags](https://packaging.python.org/en/latest/specifications/platform-compatibility-tags/),
+[CPython debug builds](https://docs.python.org/3/using/configure.html#python-debug-build).
